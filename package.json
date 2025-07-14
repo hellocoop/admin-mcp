@@ -1,0 +1,54 @@
+{
+  "name": "@hellocoop/mcp",
+  "version": "1.0.5",
+  "description": "Model Context Protocol (MCP) CLI and server for Hellō Application Admin API.",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "@hellocoop/mcp": "./src/stdio.js",
+    "hello-mcp-http": "./src/http.js"
+  },
+  "scripts": {
+    "start": "node src/stdio.js",
+    "start:http": "node src/http.js",
+    "test": "node test/test-runner.js",
+    "test:oauth-interactive": "node test/oauth-interactive.test.js",
+    "test:version": "node test/version.test.js",
+    "test:cli": "node test/cli.test.js",
+    "get-token": "node scripts/get-access-token.js",
+    "docker:build-local": "scripts/docker-build-local.sh",
+    "docker:publish": "scripts/docker-publish.sh",
+    "publish": "scripts/publish.sh --all",
+    "publish:npm": "scripts/publish.sh --npm",
+    "publish:docker": "scripts/publish.sh --docker",
+    "publish:dry-run": "scripts/publish.sh --all --dry-run",
+    "publish:check-npm": "scripts/publish.sh --check-npm",
+    "version:patch": "scripts/version-bump.sh patch",
+    "version:minor": "scripts/version-bump.sh minor",
+    "version:major": "scripts/version-bump.sh major",
+    "release:patch": "scripts/version-bump.sh patch --publish",
+    "release:minor": "scripts/version-bump.sh minor --publish",
+    "release:major": "scripts/version-bump.sh major --publish",
+    "prepublishOnly": "npm test"
+  },
+  "keywords": [
+    "mcp",
+    "hello",
+    "cli",
+    "oauth",
+    "admin"
+  ],
+  "author": "Hello Identity Co-op",
+  "license": "ISC",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@hellocoop/helper-server": "^2.2.1",
+    "@modelcontextprotocol/sdk": "^1.15.1",
+    "open": "^10.1.2"
+  },
+  "devDependencies": {
+    "semver": "^7.7.2"
+  }
+}
