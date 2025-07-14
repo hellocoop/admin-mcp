@@ -1,7 +1,7 @@
 {
   "name": "@hellocoop/mcp",
-  "version": "1.0.7",
-  "description": "Model Context Protocol (MCP) CLI and server for Hellō Application Admin API.",
+  "version": "1.0.15",
+  "description": "Model Context Protocol (MCP) for Hellō Admin API.",
   "type": "module",
   "main": "src/index.js",
   "bin": {
@@ -12,6 +12,8 @@
     "start": "node src/stdio.js",
     "start:http": "node src/http.js",
     "test": "node test/test-runner.js",
+    "test:tools": "node test/tools.test.js",
+    "test:integration": "node test/integration.test.js",
     "test:oauth-interactive": "node test/oauth-interactive.test.js",
     "test:version": "node test/version.test.js",
     "test:cli": "node test/cli.test.js",
@@ -45,7 +47,9 @@
   },
   "dependencies": {
     "@hellocoop/helper-server": "^2.2.1",
+    "@hellocoop/identifier": "^1.4.0",
     "@modelcontextprotocol/sdk": "^1.15.1",
+    "form-data": "^4.0.3",
     "open": "^10.1.2"
   },
   "devDependencies": {

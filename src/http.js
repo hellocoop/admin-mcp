@@ -5,6 +5,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { HelloMCPServer } from './mcp-server.js';
 import { createWellKnownHandlers } from './oauth-endpoints.js';
+import packageJson from './package.js';
 
 class MCPHttpServer {
   constructor(options = {}) {
@@ -13,6 +14,7 @@ class MCPHttpServer {
     this.app = express();
     this.server = null;
     this.mcpServer = new HelloMCPServer();
+    this.mcpServer.setupHandlers(); // Initialize MCP handlers
     
     this.setupMiddleware();
     this.setupRoutes();
@@ -33,8 +35,26 @@ class MCPHttpServer {
       next();
     });
 
-    // JSON parsing middleware
-    this.app.use(express.json());
+    // JSON parsing middleware with error handling
+    this.app.use(express.json({
+      limit: '10mb',
+      type: 'application/json'
+    }));
+    
+    // JSON parsing error handler
+    this.app.use((error, req, res, next) => {
+      if (error instanceof SyntaxError && error.status === 400 && 'body' in error) {
+        return res.status(400).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32700,
+            message: 'Parse error - Invalid JSON'
+          },
+          id: null
+        });
+      }
+      next(error);
+    });
   }
 
   setupRoutes() {
@@ -48,10 +68,33 @@ class MCPHttpServer {
       res.json({ status: 'ok', timestamp: new Date().toISOString() });
     });
 
+    // Version endpoint
+    this.app.get('/version', (req, res) => {
+      res.json({ 
+        name: packageJson.name,
+        version: packageJson.version,
+        description: packageJson.description
+      });
+    });
+
     // MCP endpoints - both / and /mcp
     const mcpPostHandler = async (req, res) => {
       try {
-        // Extract and set authorization if present
+        // Validate JSON-RPC request structure
+        const { jsonrpc, id, method, params } = req.body;
+        
+        if (jsonrpc !== '2.0') {
+          return res.status(400).json({
+            jsonrpc: '2.0',
+            id: id || null,
+            error: {
+              code: -32600,
+              message: 'Invalid Request - jsonrpc must be "2.0"'
+            }
+          });
+        }
+
+        // RFC 6750 compliant Bearer token parsing (case insensitive with flexible whitespace)
         const authHeader = req.headers.authorization;
         if (authHeader) {
           const bearerMatch = authHeader.match(/^bearer\s+(.+)$/i);
@@ -59,9 +102,8 @@ class MCPHttpServer {
             const token = bearerMatch[1].trim();
             this.mcpServer.setAccessToken(token);
           }
-        } else {
-          this.mcpServer.setAccessToken(null);
         }
+        // Note: Don't set to null if no header - keep existing token (e.g., from environment)
 
         const request = req.body;
         const response = await this.mcpServer.handleRequest(request);
@@ -75,6 +117,20 @@ class MCPHttpServer {
               const domain = process.env.HELLO_DOMAIN || 'hello.coop';
               res.header('WWW-Authenticate', `Bearer realm="Hello MCP Server", error="invalid_request", error_description="Valid bearer token required", scope="mcp", resource_metadata="https://mcp.${domain}/.well-known/oauth-protected-resource"`);
               res.status(401);
+              
+              // Return a clean authentication error response instead of exposing admin API internals
+              return res.json({
+                jsonrpc: '2.0',
+                error: {
+                  code: -32001,
+                  message: 'Authentication required',
+                  data: {
+                    error: 'invalid_request',
+                    error_description: 'Valid bearer token required'
+                  }
+                },
+                id: request.id || null
+              });
             }
           } catch (parseError) {
             // If parsing fails, continue with normal response
@@ -84,11 +140,27 @@ class MCPHttpServer {
         res.json(response);
       } catch (error) {
         console.error('MCP request error:', error);
+        
+        // Determine appropriate error code based on error type
+        let errorCode = -32603; // Internal error (default)
+        let errorMessage = 'Internal error';
+        
+        if (error.message.includes('Authentication')) {
+          errorCode = -32001;
+          errorMessage = 'Authentication required';
+        } else if (error.message.includes('not found')) {
+          errorCode = -32601;
+          errorMessage = 'Method not found';
+        } else if (error.message.includes('Invalid')) {
+          errorCode = -32602;
+          errorMessage = 'Invalid params';
+        }
+        
         res.status(500).json({
           jsonrpc: '2.0',
           error: {
-            code: -32603,
-            message: 'Internal error',
+            code: errorCode,
+            message: errorMessage,
             data: error.message
           },
           id: req.body?.id || null
