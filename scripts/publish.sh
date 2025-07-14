@@ -222,7 +222,7 @@ publish_npm() {
     fi
     
     if [[ "$DRY_RUN" == true ]]; then
-        print_npm "DRY RUN: Would run 'npm publish'"
+        print_npm "DRY RUN: Would run 'npm publish --access public'"
         return 0
     fi
     
@@ -232,7 +232,7 @@ publish_npm() {
     
     # Publish to npm
     print_npm "Publishing ${NPM_PACKAGE_NAME}@${VERSION} to npm..."
-    npm publish
+    npm publish --access public
     
     print_success "Successfully published to npm!"
     print_status "Package available at: https://www.npmjs.com/package/${NPM_PACKAGE_NAME}"
