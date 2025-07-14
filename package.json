@@ -1,6 +1,6 @@
 {
   "name": "@hellocoop/mcp",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Model Context Protocol (MCP) CLI and server for Hellō Application Admin API.",
   "type": "module",
   "main": "src/index.js",
