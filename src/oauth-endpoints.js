@@ -29,7 +29,7 @@ export const OAUTH_AUTH_SERVER_METADATA = {
 
 // OAuth Protected Resource Metadata (RFC 8707)
 export const OAUTH_PROTECTED_RESOURCE_METADATA = {
-  resource: `${MCP_BASE_URL}/mcp`,
+  resource: MCP_BASE_URL,
   authorization_servers: [MCP_BASE_URL],
   scopes_supported: ['mcp'],
   bearer_methods_supported: ['header'],

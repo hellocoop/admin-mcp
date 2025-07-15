@@ -126,6 +126,43 @@ export class HelloMCPServer {
             };
           }
 
+        case 'resources/list':
+          const resourcesHandler = this.mcpServer._requestHandlers.get('resources/list');
+          if (resourcesHandler) {
+            const resourcesResult = await resourcesHandler({ method: 'resources/list', params: params || {} });
+            return {
+              jsonrpc: '2.0',
+              id,
+              result: resourcesResult
+            };
+          } else {
+            return {
+              jsonrpc: '2.0',
+              id,
+              result: { resources: [] }
+            };
+          }
+
+        case 'resources/read':
+          const readResourceHandler = this.mcpServer._requestHandlers.get('resources/read');
+          if (readResourceHandler) {
+            const readResult = await readResourceHandler({ method: 'resources/read', params: params || {} });
+            return {
+              jsonrpc: '2.0',
+              id,
+              result: readResult
+            };
+          } else {
+            return {
+              jsonrpc: '2.0',
+              id,
+              error: {
+                code: -32601,
+                message: 'Method not found'
+              }
+            };
+          }
+
         case 'ping':
           return {
             jsonrpc: '2.0',
