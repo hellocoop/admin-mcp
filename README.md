@@ -55,9 +55,18 @@ This MCP server lets you create and manage your Hellō applications directly fro
 - `hello_read_application` - Read detailed application information
 - `hello_update_application` - Update application settings
 - `hello_upload_logo` - Upload application logos
+- `hello_create_secret` - Create client secrets for applications
 - `hello_generate_login_button` - Generate HTML/JavaScript login buttons
 - `hello_generate_legal_docs` - Generate Terms of Service and Privacy Policy templates
-- `hello_logo_guidance` - Get guidance for creating theme-appropriate logos
+
+## Available Resources
+
+- **Hellō Documentation** - Complete integration documentation
+- **Hellō Quickstarts** - Framework-specific setup guides
+- **Hellō Buttons** - Login button implementation guide
+- **Hellō Scopes** - Available scopes and claims reference
+- **Hellō Wallet API** - Wallet API reference documentation
+- **Hellō Logo Design Guidance** - Comprehensive guide for creating theme-appropriate logos
 
 ## Environment Variables
 

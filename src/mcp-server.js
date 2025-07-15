@@ -10,6 +10,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { ADMIN_BASE_URL } from './oauth-endpoints.js';
 import packageJson from './package.js';
+// FormData is now native in Node.js 22+
 
 export class HelloMCPServer {
   constructor() {
@@ -85,24 +86,6 @@ export class HelloMCPServer {
             result: {}
           };
 
-        case 'ping':
-          return {
-            jsonrpc: '2.0',
-            id,
-            result: {
-              status: 'ok',
-              timestamp: new Date().toISOString()
-            }
-          };
-
-        case 'logging/setLevel':
-          // Accept log level changes but don't actually implement logging levels
-          return {
-            jsonrpc: '2.0',
-            id,
-            result: {}
-          };
-
         case 'tools/list':
           const toolsHandler = this.mcpServer._requestHandlers.get('tools/list');
           if (toolsHandler) {
@@ -117,46 +100,6 @@ export class HelloMCPServer {
               jsonrpc: '2.0',
               id,
               result: { tools: [] }
-            };
-          }
-
-        case 'resources/list':
-          const resourcesHandler = this.mcpServer._requestHandlers.get('resources/list');
-          if (resourcesHandler) {
-            const resourcesResult = await resourcesHandler({ method: 'resources/list', params: params || {} });
-            return {
-              jsonrpc: '2.0',
-              id,
-              result: resourcesResult
-            };
-          } else {
-            return {
-              jsonrpc: '2.0',
-              id,
-              result: { resources: [] }
-            };
-          }
-
-        case 'resources/read':
-          const readHandler = this.mcpServer._requestHandlers.get('resources/read');
-          if (readHandler) {
-            const readResult = await readHandler({ 
-              method: 'resources/read', 
-              params: { uri: params.uri }
-            });
-            return {
-              jsonrpc: '2.0',
-              id,
-              result: readResult
-            };
-          } else {
-            return {
-              jsonrpc: '2.0',
-              id,
-              error: {
-                code: -32601,
-                message: 'Method not found'
-              }
             };
           }
 
@@ -182,6 +125,18 @@ export class HelloMCPServer {
               }
             };
           }
+
+        case 'ping':
+          return {
+            jsonrpc: '2.0',
+            id,
+            result: {
+              pong: true,
+              timestamp: new Date().toISOString(),
+              server: 'hello-admin-mcp',
+              version: packageJson.version
+            }
+          };
 
         default:
           return {
@@ -225,9 +180,14 @@ export class HelloMCPServer {
     const url = ADMIN_BASE_URL + path;
     console.log('🎯 Admin API URL:', url);
     const headers = {
-      'Content-Type': 'application/json',
       ...(requiresAuth && this.accessToken && { Authorization: `Bearer ${this.accessToken}` })
     };
+    
+    // Only add Content-Type header if we have data to send
+    if (data && (method.toUpperCase() === 'POST' || method.toUpperCase() === 'PUT')) {
+      headers['Content-Type'] = 'application/json';
+    }
+    
     console.log('📋 Request headers:', headers);
 
     const requestOptions = {
@@ -834,63 +794,50 @@ export class HelloMCPServer {
             return await this.callAdminAPI('post', `/api/v1/publishers/${args.publisher_id}/applications`, applicationData);
           }
           case 'hello_update_application': {
-            // First read the current application to avoid overwriting existing data
-            const currentApp = await this.callAdminAPI('get', `/api/v1/publishers/${args.publisher_id}/applications/${args.application_id}`);
-            
-            // Merge provided fields with existing data
+            // PUT /api/v1/publishers/:publisher/applications/:application
+            // Transform MCP parameters to Admin API format
             const updateData = {
-              ...currentApp,
-              // Only update fields that were explicitly provided
-              ...(args.name !== undefined && { name: args.name }),
-              ...(args.tos_uri !== undefined && { tos_uri: args.tos_uri }),
-              ...(args.pp_uri !== undefined && { pp_uri: args.pp_uri }),
-              ...(args.image_uri !== undefined && { image_uri: args.image_uri }),
-              ...(args.device_code !== undefined && { device_code: args.device_code })
+              name: args.name,
+              tos_uri: args.tos_uri,
+              pp_uri: args.pp_uri,
+              image_uri: args.image_uri,
+              device_code: args.device_code
             };
             
-            // Handle web config merging - only update if web-related parameters are provided
-            if (args.dev_redirect_uris !== undefined || args.prod_redirect_uris !== undefined || 
+            // Only include web config if any web-related parameters are provided
+            if (args.dev_redirect_uris || args.prod_redirect_uris || 
                 args.localhost !== undefined || args.local_ip !== undefined || 
                 args.wildcard_domain !== undefined) {
-              
-              const existingWeb = currentApp.web || { dev: {}, prod: {} };
               updateData.web = {
                 dev: {
-                  ...existingWeb.dev,
-                  ...(args.localhost !== undefined && { localhost: args.localhost }),
-                  ...(args.local_ip !== undefined && { "127.0.0.1": args.local_ip }),
-                  ...(args.wildcard_domain !== undefined && { wildcard_domain: args.wildcard_domain }),
-                  ...(args.dev_redirect_uris !== undefined && { redirect_uris: args.dev_redirect_uris })
+                  localhost: args.localhost,
+                  "127.0.0.1": args.local_ip,
+                  wildcard_domain: args.wildcard_domain,
+                  redirect_uris: args.dev_redirect_uris
                 },
                 prod: {
-                  ...existingWeb.prod,
-                  ...(args.prod_redirect_uris !== undefined && { redirect_uris: args.prod_redirect_uris })
+                  redirect_uris: args.prod_redirect_uris
                 }
               };
             }
+            
+            // Remove undefined values
+            Object.keys(updateData).forEach(key => {
+              if (updateData[key] === undefined) {
+                delete updateData[key];
+              }
+            });
             
             return await this.callAdminAPI('put', `/api/v1/publishers/${args.publisher_id}/applications/${args.application_id}`, updateData);
           }
           case 'hello_upload_logo': {
             if (args.image_url) {
-              // Use URL parameter approach - Admin API will fetch the image
-              const queryParams = new URLSearchParams({ url: args.image_url });
-              return await this.callAdminAPI('post', `/api/v1/publishers/${args.publisher_id}/applications/${args.application_id}/logo?${queryParams}`, null);
+              // Use URL query parameter approach (simpler and matches what works)
+              const path = `/api/v1/publishers/${args.publisher_id}/applications/${args.application_id}/logo?url=${encodeURIComponent(args.image_url)}`;
+              return await this.callAdminAPI('post', path, null);
             } else if (args.image_data) {
-              // For base64 data, we need to send as multipart form data
-              // Convert base64 to buffer
-              const buffer = Buffer.from(args.image_data, 'base64');
-              const filename = args.filename || 'logo.png';
-              
-              // Create multipart form data
-              const FormData = require('form-data');
-              const form = new FormData();
-              form.append('file', buffer, { filename: filename });
-              
-              // Call Admin API with multipart form data
-              return await this.callAdminAPI('post', `/api/v1/publishers/${args.publisher_id}/applications/${args.application_id}/logo`, form, {
-                headers: form.getHeaders()
-              });
+              // Use multipart form data for binary upload
+              return await this.uploadLogoBinary(args.publisher_id, args.application_id, args.image_data, args.filename || 'logo.png');
             } else {
               throw new Error('Either image_url or image_data must be provided');
             }
@@ -1376,5 +1323,66 @@ After hosting these documents, update your Hellō application:
 \`\`\`
 
 ⚠️  **Important:** These are template documents. Always consult with a qualified attorney to ensure compliance with applicable laws and regulations for your specific situation.`;
+  }
+
+  async uploadLogoBinary(publisherId, applicationId, base64ImageData, filename) {
+    try {
+      // Remove data URL prefix if present
+      const base64Data = base64ImageData.replace(/^data:image\/[a-z]+;base64,/, '');
+      
+      // Convert base64 to buffer
+      const buffer = Buffer.from(base64Data, 'base64');
+      
+      // Detect mime type from filename or default to PNG
+      let mimeType = 'image/png';
+      if (filename) {
+        const ext = filename.toLowerCase().split('.').pop();
+        const mimeTypes = {
+          'png': 'image/png',
+          'jpg': 'image/jpeg',
+          'jpeg': 'image/jpeg',
+          'gif': 'image/gif',
+          'webp': 'image/webp',
+          'svg': 'image/svg+xml'
+        };
+        mimeType = mimeTypes[ext] || 'image/png';
+      }
+      
+      // Create FormData for multipart upload using native APIs
+      const formData = new FormData();
+      
+      // Create a Blob from the buffer (Node.js 22+ has native Blob support)
+      const blob = new Blob([buffer], { type: mimeType });
+      
+      formData.append('file', blob, filename);
+      
+      const domain = process.env.HELLO_DOMAIN || 'hello.coop';
+      const adminUrl = `https://admin.${domain}/api/v1/publishers/${publisherId}/applications/${applicationId}/logo`;
+      
+      console.log('🔑 Current access token:', this.accessToken ? `${this.accessToken.substring(0, 20)}...` : 'null');
+      console.log('🎯 Admin API URL:', adminUrl);
+      
+      const response = await fetch(adminUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.accessToken}`,
+          // Don't set Content-Type - let fetch set it automatically for FormData
+        },
+        body: formData
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Admin API error: ${response.status} ${response.statusText}\n${errorText}`);
+      }
+      
+      const result = await response.json();
+      console.log('✅ Binary logo uploaded successfully:', result.image_uri);
+      return result;
+      
+    } catch (error) {
+      console.error('❌ Binary logo upload failed:', error);
+      throw error;
+    }
   }
 } 

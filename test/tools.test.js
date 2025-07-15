@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // Test script for MCP tools
-// Tests all 15 tools to ensure they work correctly
+// Tests all 11 tools to ensure they work correctly
 
 import { HelloMCPServer } from '../src/mcp-server.js';
 
@@ -49,7 +49,7 @@ class MCPToolTester {
       });
 
       const tools = result.tools;
-      const expectedToolCount = 15;
+      const expectedToolCount = 11;
       
       if (!Array.isArray(tools)) {
         throw new Error('tools is not an array');
@@ -69,12 +69,9 @@ class MCPToolTester {
         'hello_create_application',
         'hello_update_application',
         'hello_upload_logo',
-        'hello_test_logo_url',
         'hello_create_secret',
         'hello_generate_login_button',
-        'hello_generate_legal_docs',
-        'hello_logo_guidance',
-        'hello_version'
+        'hello_generate_legal_docs'
       ];
 
       const toolNames = tools.map(t => t.name);
@@ -117,7 +114,7 @@ class MCPToolTester {
       });
 
       const resources = result.resources;
-      const expectedResourceCount = 5;
+      const expectedResourceCount = 6;
       
       if (!Array.isArray(resources)) {
         throw new Error('resources is not an array');
@@ -133,7 +130,8 @@ class MCPToolTester {
         'Hellō Quickstarts',
         'Hellō Buttons',
         'Hellō Scopes',
-        'Hellō Wallet API'
+        'Hellō Wallet API',
+        'Hellō Logo Design Guidance'
       ];
 
       const resourceNames = resources.map(r => r.name);

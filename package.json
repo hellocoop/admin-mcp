@@ -43,13 +43,12 @@
   "author": "Hello Identity Co-op",
   "license": "ISC",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   },
   "dependencies": {
     "@hellocoop/helper-server": "^2.2.1",
     "@hellocoop/identifier": "^1.4.0",
     "@modelcontextprotocol/sdk": "^1.15.1",
-    "form-data": "^4.0.3",
     "open": "^10.1.2"
   },
   "devDependencies": {
