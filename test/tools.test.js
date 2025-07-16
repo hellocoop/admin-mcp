@@ -49,7 +49,7 @@ class MCPToolTester {
       });
 
       const tools = result.tools;
-      const expectedToolCount = 11;
+      const expectedToolCount = 10;
       
       if (!Array.isArray(tools)) {
         throw new Error('tools is not an array');
@@ -60,9 +60,9 @@ class MCPToolTester {
       }
 
       // Check for required tools
-      const requiredTools = [
+            const requiredTools = [
         'hello_get_profile',
-        'hello_create_publisher', 
+        'hello_create_publisher',
         'hello_update_publisher',
         'hello_read_publisher',
         'hello_read_application',
@@ -70,7 +70,6 @@ class MCPToolTester {
         'hello_update_application',
         'hello_upload_logo',
         'hello_create_secret',
-        'hello_generate_login_button',
         'hello_generate_legal_docs'
       ];
 
@@ -114,7 +113,7 @@ class MCPToolTester {
       });
 
       const resources = result.resources;
-      const expectedResourceCount = 6;
+      const expectedResourceCount = 7;
       
       if (!Array.isArray(resources)) {
         throw new Error('resources is not an array');

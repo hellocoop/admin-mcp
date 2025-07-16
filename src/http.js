@@ -1,50 +1,83 @@
 #!/usr/bin/env node
 
-import express from 'express';
+import Fastify from 'fastify';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { HelloMCPServer } from './mcp-server.js';
 import { createWellKnownHandlers } from './oauth-endpoints.js';
+import { setupLogging } from './log.js';
+import { jwtValidationPlugin } from './jwt-validation.js';
 import packageJson from './package.js';
 
 class MCPHttpServer {
   constructor(options = {}) {
     this.port = options.port || process.env.PORT || 3000;
-    this.host = options.host || process.env.HOST || '0.0.0.0';
-    this.app = express();
-    this.server = null;
+    this.host = options.host || '0.0.0.0';
+    
+    // Configure logging similar to wallet server
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const logLevel = process.env.LOG_LEVEL || 'info';
+    
+    this.fastify = Fastify({
+      logger: {
+        level: logLevel,
+        base: null, // Removes `pid` and `hostname`
+        formatters: {
+          level(label) {
+            return { level: label }; // Converts numeric levels to readable text
+          },
+        },
+        timestamp: () => `,"timestamp":"${new Date().toISOString()}"`, // ISO 8601 timestamp
+        transport: isDevelopment ? {
+          target: 'pino-pretty',
+          options: {
+            colorize: true, // Color logs in development
+            translateTime: 'HH:MM:ss.l', // Just the time
+            ignore: 'pid,hostname', // Remove from output
+            levelFirst: true,
+            singleLine: false,
+          },
+        } : undefined, // No transport in production, just structured JSON
+      },
+      trustProxy: true // For proper IP detection behind proxies
+    });
     this.mcpServer = new HelloMCPServer();
     this.mcpServer.setupHandlers(); // Initialize MCP handlers
-    
-    this.setupMiddleware();
+  }
+  
+  async init() {
+    await this.setupPlugins();
     this.setupRoutes();
   }
 
-  setupMiddleware() {
-    // CORS middleware - matching Admin server approach
-    this.app.use((req, res, next) => {
-      const requestedHeaders = req.headers['access-control-request-headers'];
-      res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-      res.header('Access-Control-Allow-Headers', requestedHeaders || 'Authorization, Content-Type, mcp-protocol-version');
-      res.header('Access-Control-Max-Age', '86400');
+  async setupPlugins() {
+    // Setup structured logging
+    await this.fastify.register(setupLogging);
+    
+    // Setup JWT validation
+    await this.fastify.register(jwtValidationPlugin);
+    
+    // CORS plugin
+    await this.fastify.register(async (fastify) => {
+      fastify.addHook('onRequest', async (request, reply) => {
+        const requestedHeaders = request.headers['access-control-request-headers'];
+        reply.header('Access-Control-Allow-Origin', request.headers.origin || '*');
+        reply.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+        reply.header('Access-Control-Allow-Headers', requestedHeaders || 'Authorization, Content-Type, mcp-protocol-version');
+        reply.header('Access-Control-Max-Age', '86400');
+      });
       
-      if (req.method === 'OPTIONS') {
-        return res.status(204).end();
-      }
-      next();
+      // Handle OPTIONS requests
+      fastify.options('*', async (request, reply) => {
+        reply.code(204);
+        return '';
+      });
     });
-
-    // JSON parsing middleware with error handling
-    this.app.use(express.json({
-      limit: '10mb',
-      type: 'application/json'
-    }));
     
     // JSON parsing error handler
-    this.app.use((error, req, res, next) => {
-      if (error instanceof SyntaxError && error.status === 400 && 'body' in error) {
-        return res.status(400).json({
+    this.fastify.setErrorHandler(async (error, request, reply) => {
+      if (error.statusCode === 400 && error.message.includes('JSON')) {
+        return reply.code(400).send({
           jsonrpc: '2.0',
           error: {
             code: -32700,
@@ -53,38 +86,56 @@ class MCPHttpServer {
           id: null
         });
       }
-      next(error);
+      
+      request.log.error({
+        event: 'fastify_error',
+        error: {
+          message: error.message,
+          stack: error.stack,
+          statusCode: error.statusCode
+        }
+      }, 'Fastify error');
+      
+      reply.code(error.statusCode || 500).send({
+        jsonrpc: '2.0',
+        error: {
+          code: -32603,
+          message: 'Internal error',
+          data: error.message
+        },
+        id: null
+      });
     });
   }
 
   setupRoutes() {
     // OAuth well-known endpoints
     const endpoints = createWellKnownHandlers();
-    this.app.get('/.well-known/oauth-authorization-server', endpoints.authServer);
-    this.app.get('/.well-known/oauth-protected-resource', endpoints.protectedResource);
+    this.fastify.get('/.well-known/oauth-authorization-server', endpoints.authServer);
+    this.fastify.get('/.well-known/oauth-protected-resource', endpoints.protectedResource);
 
     // Health check
-    this.app.get('/health', (req, res) => {
-      res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    this.fastify.get('/health', async (request, reply) => {
+      return { status: 'ok', timestamp: new Date().toISOString() };
     });
 
     // Version endpoint
-    this.app.get('/version', (req, res) => {
-      res.json({ 
+    this.fastify.get('/version', async (request, reply) => {
+      return { 
         name: packageJson.name,
         version: packageJson.version,
         description: packageJson.description
-      });
+      };
     });
 
-    // MCP endpoints - both / and /mcp
-    const mcpPostHandler = async (req, res) => {
+    // MCP POST handler
+    const mcpPostHandler = async (request, reply) => {
       try {
         // Validate JSON-RPC request structure
-        const { jsonrpc, id, method, params } = req.body;
+        const { jsonrpc, id, method, params } = request.body;
         
         if (jsonrpc !== '2.0') {
-          return res.status(400).json({
+          return reply.code(400).send({
             jsonrpc: '2.0',
             id: id || null,
             error: {
@@ -94,8 +145,9 @@ class MCPHttpServer {
           });
         }
 
-        // RFC 6750 compliant Bearer token parsing (case insensitive with flexible whitespace)
-        const authHeader = req.headers.authorization;
+        // JWT validation plugin has already validated the token
+        // Extract token from validated payload for MCP server
+        const authHeader = request.headers.authorization;
         if (authHeader) {
           const bearerMatch = authHeader.match(/^bearer\s+(.+)$/i);
           if (bearerMatch) {
@@ -103,43 +155,24 @@ class MCPHttpServer {
             this.mcpServer.setAccessToken(token);
           }
         }
-        // Note: Don't set to null if no header - keep existing token (e.g., from environment)
 
-        const request = req.body;
-        const response = await this.mcpServer.handleRequest(request);
-        
-        // Check if the response contains HTTP status and headers from admin API
-        if (response && response.result && response.result.content && response.result.content[0] && response.result.content[0].text) {
-          try {
-            const contentData = JSON.parse(response.result.content[0].text);
-            if (contentData._httpStatus === 401 || contentData._httpStatus === 400) {
-              // Set WWW-Authenticate header for authentication errors (matching Admin server format)
-              const domain = process.env.HELLO_DOMAIN || 'hello.coop';
-              res.header('WWW-Authenticate', `Bearer realm="Hello MCP Server", error="invalid_request", error_description="Valid bearer token required", scope="mcp", resource_metadata="https://mcp.${domain}/.well-known/oauth-protected-resource"`);
-              res.status(401);
-              
-              // Return a clean authentication error response instead of exposing admin API internals
-              return res.json({
-                jsonrpc: '2.0',
-                error: {
-                  code: -32001,
-                  message: 'Authentication required',
-                  data: {
-                    error: 'invalid_request',
-                    error_description: 'Valid bearer token required'
-                  }
-                },
-                id: request.id || null
-              });
-            }
-          } catch (parseError) {
-            // If parsing fails, continue with normal response
-          }
+        // Pass validated JWT payload to MCP server for enhanced logging
+        if (request.jwtPayload) {
+          this.mcpServer.setJWTPayload(request.jwtPayload);
         }
+
+        const mcpRequest = request.body;
+        const response = await this.mcpServer.handleRequest(mcpRequest);
         
-        res.json(response);
+        return response;
       } catch (error) {
-        console.error('MCP request error:', error);
+        request.log.error({
+          event: 'mcp_request_error',
+          error: {
+            message: error.message,
+            stack: error.stack
+          }
+        }, 'MCP request error');
         
         // Determine appropriate error code based on error type
         let errorCode = -32603; // Internal error (default)
@@ -156,89 +189,94 @@ class MCPHttpServer {
           errorMessage = 'Invalid params';
         }
         
-        res.status(500).json({
+        return reply.code(500).send({
           jsonrpc: '2.0',
           error: {
             code: errorCode,
             message: errorMessage,
             data: error.message
           },
-          id: req.body?.id || null
+          id: request.body?.id || null
         });
       }
     };
 
-    const mcpGetHandler = (req, res) => {
-      res.redirect('https://www.hello.dev/docs/mcp/');
+    const mcpGetHandler = async (request, reply) => {
+      return reply.redirect('https://www.hello.dev/docs/mcp/');
     };
 
     // Register both GET and POST handlers
-    this.app.get('/', mcpGetHandler);
-    this.app.post('/', mcpPostHandler);
-    this.app.get('/mcp', mcpGetHandler);
-    this.app.post('/mcp', mcpPostHandler);
+    this.fastify.get('/', mcpGetHandler);
+    this.fastify.post('/', mcpPostHandler);
+    this.fastify.get('/mcp', mcpGetHandler);
+    this.fastify.post('/mcp', mcpPostHandler);
   }
 
   async start() {
-    return new Promise((resolve, reject) => {
-      this.server = this.app.listen(this.port, this.host, (err) => {
-        if (err) {
-          reject(err);
-        } else {
-          console.log(`🚀 Hello MCP Server running on http://${this.host}:${this.port}`);
-          console.log(`📡 MCP endpoints: POST / or POST /mcp`);
-          console.log(`🔗 Docs redirect: GET / or GET /mcp -> https://www.hello.dev/docs/mcp/`);
-          console.log(`🔍 OAuth metadata: GET /.well-known/oauth-authorization-server`);
-          console.log(`🛡️  Protected resource: GET /.well-known/oauth-protected-resource`);
-          console.log(`❤️  Health check: GET /health`);
-          resolve();
+    try {
+      await this.init(); // Initialize plugins and routes
+      
+      // Structured startup logging
+      const startInfo = {
+        event: 'server-start',
+        config: {
+          HOST: this.host,
+          PORT: this.port.toString(),
+          NODE_ENV: process.env.NODE_ENV || 'development',
+          HELLO_DOMAIN: process.env.HELLO_DOMAIN || 'hello.coop',
+          HELLO_ISSUER: process.env.HELLO_ISSUER || `https://issuer.${process.env.HELLO_DOMAIN || 'hello.coop'}`,
+          HELLO_AUDIENCE: process.env.HELLO_AUDIENCE || `https://mcp.${process.env.HELLO_DOMAIN || 'hello.coop'}`,
+          HELLO_ADMIN: process.env.HELLO_ADMIN || 'http://admin:8000',
+          VERSION: packageJson.version,
+          NAME: packageJson.name,
+          DESCRIPTION: packageJson.description
         }
-      });
-    });
+      };
+      
+      this.fastify.log.info(startInfo, 'mcp server starting');
+      
+      await this.fastify.listen({ port: this.port, host: this.host });
+      
+      this.fastify.log.info({
+        event: 'server-listening',
+        address: `http://${this.host}:${this.port}`
+      }, `MCP Server listening on http://${this.host}:${this.port}`);
+      
+    } catch (err) {
+      console.error('Error starting server:', err);
+      process.exit(1);
+    }
   }
 
   async stop() {
-    return new Promise((resolve) => {
-      if (this.server) {
-        this.server.close(() => {
-          console.log('Server stopped');
-          resolve();
-        });
-      } else {
-        resolve();
-      }
-    });
+    try {
+      await this.fastify.close();
+      this.fastify.log.info({ event: 'server-stopped' }, 'MCP Server stopped');
+    } catch (err) {
+      console.error('Error stopping server:', err);
+    }
   }
 }
 
-// Handle graceful shutdown
-process.on('SIGINT', async () => {
-  console.log('\nReceived SIGINT, shutting down gracefully...');
-  if (global.mcpHttpServer) {
-    await global.mcpHttpServer.stop();
-  }
-  process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-  console.log('\nReceived SIGTERM, shutting down gracefully...');
-  if (global.mcpHttpServer) {
-    await global.mcpHttpServer.stop();
-  }
-  process.exit(0);
-});
-
 // Start server if this file is run directly
-const isMainModule = import.meta.url === `file://${process.argv[1]}`;
-
-if (isMainModule) {
-  const server = new MCPHttpServer();
-  global.mcpHttpServer = server;
+if (import.meta.url === `file://${process.argv[1]}`) {
+  // Create server instance
+const server = new MCPHttpServer();
   
-  server.start().catch((error) => {
-    console.error('Failed to start server:', error);
-    process.exit(1);
+  // Graceful shutdown
+  process.on('SIGINT', async () => {
+    console.log('\n🛑 Received SIGINT, shutting down gracefully...');
+    await server.stop();
+    process.exit(0);
   });
+  
+  process.on('SIGTERM', async () => {
+    console.log('\n🛑 Received SIGTERM, shutting down gracefully...');
+    await server.stop();
+    process.exit(0);
+  });
+  
+  server.start().catch(console.error);
 }
 
 export { MCPHttpServer }; 

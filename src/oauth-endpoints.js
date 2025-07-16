@@ -35,33 +35,19 @@ export const OAUTH_PROTECTED_RESOURCE_METADATA = {
   bearer_methods_supported: ['header'],
 };
 
-// Express/Fastify route handlers
+// Fastify route handlers
 export function createWellKnownHandlers() {
   return {
-    authServer: async (req, res) => {
-      console.log('Well-Known OAuth Server Request:', req.url || req.path);
+    authServer: async (request, reply) => {
+      // OAuth server request logged through structured logging
       
-      if (res.send) {
-        // Express-style
-        res.json(OAUTH_AUTH_SERVER_METADATA);
-      } else {
-        // Node.js http response style
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(OAUTH_AUTH_SERVER_METADATA, null, 2));
-      }
+      return reply.send(OAUTH_AUTH_SERVER_METADATA);
     },
 
-    protectedResource: async (req, res) => {
-      console.log('Well-Known Protected Resource Request:', req.url || req.path);
+    protectedResource: async (request, reply) => {
+      // Protected resource request logged through structured logging
       
-      if (res.send) {
-        // Express-style
-        res.json(OAUTH_PROTECTED_RESOURCE_METADATA);
-      } else {
-        // Node.js http response style
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(OAUTH_PROTECTED_RESOURCE_METADATA, null, 2));
-      }
+      return reply.send(OAUTH_PROTECTED_RESOURCE_METADATA);
     }
   };
 }

@@ -280,15 +280,7 @@ class MCPIntegrationTester {
           salt: salt
         }, 'Create client secret');
 
-        // Test login button generation
-        await this.testTool('hello_generate_login_button', {
-          application_id: application.client_id,
-          redirect_uri: 'http://localhost:3000/callback',
-          scopes: ['openid', 'name', 'email'],
-          style: 'html-styled',
-          provider_hint: ['github', 'google'],
-          domain_hint: 'personal'
-        }, 'Generate login button');
+
       }
     }
 
