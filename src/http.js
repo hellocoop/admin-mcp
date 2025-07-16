@@ -27,15 +27,14 @@ class MCPHttpServer {
   async setupPlugins() {
     // Setup structured logging
     setupLogging(this.fastify);
-    // await this.fastify.register(setupLogging);
     
     // Setup JWT validation
     await this.fastify.register(jwtValidationPlugin);
     
-    // CORS plugin
+    // CORS plugin - moved to preHandler for better reliability
     await this.fastify.register(async (fastify) => {
-      // Set CORS headers on all responses
-      fastify.addHook('onRequest', async (request, reply) => {
+      // Set CORS headers on all responses using preHandler
+      fastify.addHook('preHandler', async (request, reply) => {
         const origin = request.headers.origin || '*';
         const requestedHeaders = request.headers['access-control-request-headers'];
         
