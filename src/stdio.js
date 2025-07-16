@@ -145,17 +145,24 @@ class MCPCLIServer {
           res.end(successHtml);
           
           resolve(code);
+        } else if (parsedUrl.pathname === '/auth/start') {
+          // Handle the auth start request - redirect to authorization URL
+          res.writeHead(302, { 'Location': authUrl });
+          res.end();
         } else {
-          // Serve the login page
+          // Serve the login page for all other requests
           res.writeHead(200, { 'Content-Type': 'text/html' });
           const loginHtml = fs.readFileSync(path.join(__dirname, 'auth-login.html'), 'utf8');
-          const htmlWithAuthUrl = loginHtml.replace('{{AUTH_URL}}', authUrl);
+          const htmlWithAuthUrl = loginHtml.replace('{{AUTH_URL}}', '/auth/start');
           res.end(htmlWithAuthUrl);
         }
       });
 
       server.listen(this.localPort, () => {
-        open(authUrl);
+        const serverUrl = `http://localhost:${this.localPort}`;
+        console.error(`🌐 MCP Authentication server started: ${serverUrl}`);
+        console.error(`📱 Opening browser automatically...`);
+        open(serverUrl);
       });
 
       server.on('error', (err) => {
