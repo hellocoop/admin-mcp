@@ -160,8 +160,7 @@ class MCPCLIServer {
           // Serve the login page for all other requests
           res.writeHead(200, { 'Content-Type': 'text/html' });
           const loginHtml = fs.readFileSync(path.join(__dirname, 'auth-login.html'), 'utf8');
-          const htmlWithAuthUrl = loginHtml.replace('{{AUTH_URL}}', '/auth/start');
-          res.end(htmlWithAuthUrl);
+          res.end(loginHtml);
         }
       });
 

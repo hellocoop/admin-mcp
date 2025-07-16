@@ -111,12 +111,15 @@ class TokenGetter {
           // Close server after successful callback
           server.close();
           resolve(code);
+        } else if (parsedUrl.pathname === '/auth/start') {
+          // Redirect to authorization URL when user clicks the button
+          res.writeHead(302, { 'Location': authUrl });
+          res.end();
         } else {
           // Serve the login page
           res.writeHead(200, { 'Content-Type': 'text/html' });
           const loginHtml = fs.readFileSync(path.join(__dirname, '..', 'src', 'auth-login.html'), 'utf8');
-          const htmlWithAuthUrl = loginHtml.replace('{{AUTH_URL}}', authUrl);
-          res.end(htmlWithAuthUrl);
+          res.end(loginHtml);
         }
       });
 
