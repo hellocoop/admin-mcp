@@ -5,7 +5,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { HelloMCPServer } from './mcp-server.js';
 import { createWellKnownHandlers } from './oauth-endpoints.js';
-import { setupLogging } from './log.js';
+import { setupLogging, logOptions } from './log.js';
 import { jwtValidationPlugin } from './jwt-validation.js';
 import packageJson from './package.js';
 
@@ -14,33 +14,7 @@ class MCPHttpServer {
     this.port = options.port || process.env.PORT || 3000;
     this.host = options.host || '0.0.0.0';
     
-    // Configure logging similar to wallet server
-    const isDevelopment = process.env.NODE_ENV === 'development';
-    const logLevel = process.env.LOG_LEVEL || 'info';
-    
-    this.fastify = Fastify({
-      logger: {
-        level: logLevel,
-        base: null, // Removes `pid` and `hostname`
-        formatters: {
-          level(label) {
-            return { level: label }; // Converts numeric levels to readable text
-          },
-        },
-        timestamp: () => `,"timestamp":"${new Date().toISOString()}"`, // ISO 8601 timestamp
-        transport: isDevelopment ? {
-          target: 'pino-pretty',
-          options: {
-            colorize: true, // Color logs in development
-            translateTime: 'HH:MM:ss.l', // Just the time
-            ignore: 'pid,hostname', // Remove from output
-            levelFirst: true,
-            singleLine: false,
-          },
-        } : undefined, // No transport in production, just structured JSON
-      },
-      trustProxy: true // For proper IP detection behind proxies
-    });
+    this.fastify = Fastify(logOptions);
     this.mcpServer = new HelloMCPServer();
     this.mcpServer.setupHandlers(); // Initialize MCP handlers
   }
@@ -52,7 +26,8 @@ class MCPHttpServer {
 
   async setupPlugins() {
     // Setup structured logging
-    await this.fastify.register(setupLogging);
+    setupLogging(this.fastify);
+    // await this.fastify.register(setupLogging);
     
     // Setup JWT validation
     await this.fastify.register(jwtValidationPlugin);

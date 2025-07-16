@@ -86,95 +86,111 @@ export const getLogContext = () => {
   return asyncLocalStorage.getStore() || {}
 }
 
-// Fastify plugin for structured logging
-export const setupLogging = async (fastify) => {
-  // Pre-handler hook for request logging
-  fastify.addHook('onRequest', async (request, reply) => {
-    const rid = identifier.req()
-    request.hrStartTime = process.hrtime()
-    
-    // Set response headers
-    reply.header('Cache-Control', 'no-store')
-    reply.header('Pragma', 'no-cache')
-    reply.header('x-hello-request-id', rid)
-    
-    // Extract token info - prioritize validated payload over re-parsing
-    let tokenInfo = null
-    if (request.jwtPayload) {
-      // Use validated JWT payload if available (preferred)
-      tokenInfo = extractTokenInfoFromPayload(request.jwtPayload)
-    } else if (request.headers.authorization) {
-      // Fallback to parsing token from header
-      const bearerMatch = request.headers.authorization.match(/^bearer\s+(.+)$/i)
-      if (bearerMatch) {
-        const token = bearerMatch[1].trim()
-        tokenInfo = extractTokenIdentifier(token)
-      }
-    }
-    
-    const clientIP = getClientIP(request)
-    
-    const logContext = { 
-      rid, 
-      clientIP,
-      tokenInfo: tokenInfo || { jti: 'none', sub: 'none', aud: 'none', iss: 'none', scope: 'none', exp: 'none' },
-      logger: createLogger({ rid, clientIP, tokenInfo: tokenInfo || { jti: 'none', sub: 'none', aud: 'none', iss: 'none', scope: 'none', exp: 'none' } }, fastify.log)
-    }
-    
-    // Run the request in the logging context
-    await new Promise((resolve) => {
-      asyncLocalStorage.run(logContext, () => {
-        request.log = createLogger(logContext, fastify.log)
-        
-        // Log request with enhanced token information
-        const path = request.routerPath || request.url?.split('?')[0] || 'unknown'
-        request.log.info({
-          event: 'http_request',
-          method: request.method,
-          path: path,
-          query: request.query,
-          body: request.method === 'POST' ? request.body : undefined, // Only log body for POST requests
-          userAgent: request.headers['user-agent'],
-          contentType: request.headers['content-type'],
-          hasAuth: !!request.headers.authorization,
-          hasValidatedJWT: !!request.jwtPayload
-        }, `HTTP ${request.method} ${path}`)
-        
-        resolve()
-      })
-    })
-  })
+// Global app reference for logging (similar to Wallet)
+let app = null
+
+// Pre-handler hook for setting up logging context (similar to Wallet's sessionPreHandler)
+export const loggingPreHandler = (request, reply, done) => {
+  const rid = identifier.req()
+  request.hrStartTime = process.hrtime()
   
-  // Post-response hook for response logging
-  fastify.addHook('onResponse', async (request, reply) => {
-    const logContext = getLogContext()
-    if (!logContext.rid) return // Skip if no context
+  // Set response headers
+  reply.header('Cache-Control', 'no-store')
+  reply.header('Pragma', 'no-cache')
+  reply.header('x-hello-request-id', rid)
+  
+  // Extract token info - prioritize validated payload over re-parsing
+  let tokenInfo = null
+  if (request.jwtPayload) {
+    // Use validated JWT payload if available (preferred)
+    tokenInfo = extractTokenInfoFromPayload(request.jwtPayload)
+  } else if (request.headers.authorization) {
+    // Fallback to parsing token from header
+    const bearerMatch = request.headers.authorization.match(/^bearer\s+(.+)$/i)
+    if (bearerMatch) {
+      const token = bearerMatch[1].trim()
+      tokenInfo = extractTokenIdentifier(token)
+    }
+  }
+  
+  const clientIP = getClientIP(request)
+  
+  const logContext = { 
+    rid, 
+    clientIP,
+    tokenInfo: tokenInfo || { jti: 'none', sub: 'none', aud: 'none', iss: 'none', scope: 'none', exp: 'none' }
+  }
+  
+  asyncLocalStorage.run(logContext, () => {
+    // Create a request-specific logger using child logger pattern like Wallet
+    request.log = app 
+      ? app.log.child(logContext)
+      : createLogger(logContext) // fallback for tests
     
-    asyncLocalStorage.run(logContext, () => {
-      let duration_ms = 'unknown'
-      if (request.hrStartTime) {
-        const diff = process.hrtime(request.hrStartTime)
-        duration_ms = Math.round(diff[0] * 1000 + diff[1] / 1e6)
-      }
-      
-      const data = {
-        event: 'http_response',
-        statusCode: reply.statusCode,
-        duration_ms,
-        contentLength: reply.getHeader('content-length') || 0
-      }
-      
-      const message = `HTTP response ${reply.statusCode} (${duration_ms}ms)`
-      
-      if (reply.statusCode < 400) {
-        request.log.info(data, message)
-      } else if (reply.statusCode < 500) {
-        request.log.warn(data, message)
-      } else {
-        request.log.error(data, message)
-      }
-    })
+    done()
   })
+}
+
+// Separate function for logging requests (similar to Wallet's logRequest)
+export const logRequest = (request, reply, done) => {
+  const path = request.routerPath || request.url?.split('?')[0] || 'unknown'
+  request.log.info({
+    event: 'http_request',
+    method: request.method,
+    path: path,
+    query: request.query,
+    body: request.method === 'POST' ? request.body : undefined, // Only log body for POST requests
+    userAgent: request.headers['user-agent'],
+    contentType: request.headers['content-type'],
+    hasAuth: !!request.headers.authorization,
+    hasValidatedJWT: !!request.jwtPayload,
+    allHeaders: {
+      ...request.headers,
+      authorization: request.headers.authorization ? '[REDACTED]' : undefined
+    }
+  }, `HTTP ${request.method} ${path}`)
+  
+  done()
+}
+
+// Separate function for logging responses (similar to Wallet's logResponse)
+export const logResponse = (request, reply, payload, done) => {
+  let duration_ms = 'unknown'
+  if (request.hrStartTime) {
+    const diff = process.hrtime(request.hrStartTime)
+    duration_ms = Math.round(diff[0] * 1000 + diff[1] / 1e6)
+  }
+  
+  const data = {
+    event: 'http_response',
+    statusCode: reply.statusCode,
+    duration_ms,
+    contentLength: reply.getHeader('content-length') || 0,
+    allResponseHeaders: reply.getHeaders()
+  }
+  
+  const message = `HTTP response ${reply.statusCode} (${duration_ms}ms)`
+  
+  if (reply.statusCode < 400) {
+    request.log.info(data, message)
+  } else if (reply.statusCode < 500) {
+    request.log.warn(data, message)
+  } else {
+    request.log.error(data, message)
+  }
+  
+  done(null, payload)
+}
+
+// Fastify plugin for structured logging
+export const setupLogging = (fastify) => {
+  // Set global app reference like Wallet
+  app = fastify
+  
+  // Add hooks in the same order as Wallet
+  fastify.addHook('preHandler', loggingPreHandler)  // Set up context first
+  fastify.addHook('preHandler', logRequest)         // Then log the request
+  fastify.addHook('preSerialization', logResponse)  // Log response before serialization
 }
 
 // Create a logger instance with current context (for use outside request handlers)
@@ -188,13 +204,7 @@ export const createContextLogger = () => {
       tokenInfo: { jti: 'none', sub: 'none', aud: 'none', iss: 'none', scope: 'none', exp: 'none' }
     })
   }
-  return createLogger(context)
-}
-
-// Export for backward compatibility
-export const loggingMiddleware = (req, res, next) => {
-  console.warn('loggingMiddleware is deprecated, use setupLogging Fastify plugin instead')
-  next()
+  return app ? app.log.child(context) : createLogger(context)
 }
 
 // API logging helpers
@@ -245,3 +255,29 @@ export const apiLogError = ({ event, startTime, message, extra = {} }) => {
     }))
   }
 } 
+
+// Fastify logging configuration (similar to Wallet server)
+export const logOptions = {
+  disableRequestLogging: true, // Disable automatic request logging
+  logger: {
+    level: process.env.LOG_LEVEL || 'info',
+    base: null, // Removes `pid` and `hostname`
+    formatters: {
+      level(label) {
+        return { level: label }; // Converts numeric levels to readable text
+      },
+    },
+    timestamp: () => `,"timestamp":"${new Date().toISOString()}"`, // ISO 8601 timestamp
+    transport: (process.env.NODE_ENV === 'development') ? {
+      target: 'pino-pretty',
+      options: {
+        colorize: true, // Color logs in development
+        translateTime: 'HH:MM:ss.l', // Just the time
+        ignore: 'pid,hostname', // Remove from output
+        levelFirst: true,
+        singleLine: false,
+      },
+    } : undefined, // No transport in production, just structured JSON
+  },
+  trustProxy: true // For proper IP detection behind proxies
+}; 
