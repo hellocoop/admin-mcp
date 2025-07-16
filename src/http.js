@@ -59,12 +59,17 @@ class MCPHttpServer {
     
     // CORS plugin
     await this.fastify.register(async (fastify) => {
+      // Set CORS headers on all responses
       fastify.addHook('onRequest', async (request, reply) => {
+        const origin = request.headers.origin || '*';
         const requestedHeaders = request.headers['access-control-request-headers'];
-        reply.header('Access-Control-Allow-Origin', request.headers.origin || '*');
+        
+        // Always set CORS headers
+        reply.header('Access-Control-Allow-Origin', origin);
         reply.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-        reply.header('Access-Control-Allow-Headers', requestedHeaders || 'Authorization, Content-Type, mcp-protocol-version');
+        reply.header('Access-Control-Allow-Headers', requestedHeaders || 'Authorization, Content-Type, Accept, Origin, X-Requested-With, mcp-protocol-version');
         reply.header('Access-Control-Max-Age', '86400');
+        reply.header('Access-Control-Allow-Credentials', 'false');
       });
       
       // Handle OPTIONS requests
