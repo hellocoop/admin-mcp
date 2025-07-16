@@ -65,19 +65,15 @@ class MCPCLIServer {
       const state = crypto.randomUUID();
       const nonce = crypto.randomUUID();
 
-      // Create authorization URL
-      const authUrl = this.createAuthorizationUrl({
-        client_id: MCP_CLIENT_ID,
-        redirect_uri: `http://localhost:${this.localPort}/callback`,
-        scope: ['mcp'],
-        code_challenge: pkceMaterial.code_challenge,
-        code_challenge_method: 'S256',
+      // Store OAuth parameters for later use
+      this.oauthParams = {
+        pkceMaterial,
         state,
         nonce
-      });
+      };
 
-      // Start local callback server
-      const authCode = await this.startCallbackServer(state, authUrl);
+      // Start local callback server (without auth URL yet)
+      const authCode = await this.startCallbackServer(state);
 
       // Exchange code for token
       const tokenResponse = await this.exchangeCodeForToken({
@@ -111,7 +107,7 @@ class MCPCLIServer {
     return `${WALLET_BASE_URL}/authorize?${urlParams.toString()}`;
   }
 
-  async startCallbackServer(expectedState, authUrl) {
+  async startCallbackServer(expectedState) {
     return new Promise((resolve, reject) => {
       const server = http.createServer((req, res) => {
         const parsedUrl = url.parse(req.url, true);
@@ -146,7 +142,18 @@ class MCPCLIServer {
           
           resolve(code);
         } else if (parsedUrl.pathname === '/auth/start') {
-          // Handle the auth start request - redirect to authorization URL
+          // Generate authorization URL when user clicks the button
+          const authUrl = this.createAuthorizationUrl({
+            client_id: MCP_CLIENT_ID,
+            redirect_uri: `http://localhost:${this.localPort}/callback`,
+            scope: ['mcp'],
+            code_challenge: this.oauthParams.pkceMaterial.code_challenge,
+            code_challenge_method: 'S256',
+            state: this.oauthParams.state,
+            nonce: this.oauthParams.nonce
+          });
+
+          // Redirect to authorization URL
           res.writeHead(302, { 'Location': authUrl });
           res.end();
         } else {
