@@ -849,7 +849,7 @@ export class HelloMCPServer {
             if (args.publisher_id) path += `/${args.publisher_id}`;
             const result = await this.callAdminAPI('get', path);
             return {
-              content: [{
+              contents: [{
                 type: 'text',
                 text: JSON.stringify(result, null, 2)
               }]
@@ -1428,7 +1428,7 @@ If you need assistance with implementation:
     const guidance = this.generateLegalGuidance(args);
 
     return {
-      content: [{
+      contents: [{
         type: 'text',
         text: `Generated comprehensive legal documents for **${app_name}**:\n\n## Terms of Service\n\n\`\`\`markdown\n${termsOfService}\n\`\`\`\n\n## Privacy Policy\n\n\`\`\`markdown\n${privacyPolicy}\n\`\`\`\n\n${guidance}`
       }]
