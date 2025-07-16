@@ -372,6 +372,17 @@ export class HelloMCPServer {
     }
   }
 
+  // Wrapper for callAdminAPI that returns MCP-formatted contents
+  async callAdminAPIForMCP(method, path, data, options = {}) {
+    const result = await this.callAdminAPI(method, path, data, options);
+    return {
+      contents: [{
+        type: 'text',
+        text: JSON.stringify(result, null, 2)
+      }]
+    };
+  }
+
   setAuthenticationCallback(callback) {
     this.authenticationCallback = callback;
   }
@@ -857,19 +868,19 @@ export class HelloMCPServer {
           }
           case 'hello_create_publisher': {
             // POST /api/v1/publishers
-            return await this.callAdminAPI('post', '/api/v1/publishers', { name: args.name });
+            return await this.callAdminAPIForMCP('post', '/api/v1/publishers', { name: args.name });
           }
           case 'hello_update_publisher': {
             // PUT /api/v1/publishers/:publisher
-            return await this.callAdminAPI('put', `/api/v1/publishers/${args.publisher_id}`, { name: args.name });
+            return await this.callAdminAPIForMCP('put', `/api/v1/publishers/${args.publisher_id}`, { name: args.name });
           }
           case 'hello_read_publisher': {
             // GET /api/v1/publishers/:publisher
-            return await this.callAdminAPI('get', `/api/v1/publishers/${args.publisher_id}`);
+            return await this.callAdminAPIForMCP('get', `/api/v1/publishers/${args.publisher_id}`);
           }
           case 'hello_read_application': {
             // GET /api/v1/publishers/:publisher/applications/:application
-            return await this.callAdminAPI('get', `/api/v1/publishers/${args.publisher_id}/applications/${args.application_id}`);
+            return await this.callAdminAPIForMCP('get', `/api/v1/publishers/${args.publisher_id}/applications/${args.application_id}`);
           }
           case 'hello_create_application': {
             // POST /api/v1/publishers/:publisher/applications
@@ -894,7 +905,7 @@ export class HelloMCPServer {
               createdBy: 'mcp'
             };
             
-            return await this.callAdminAPI('post', `/api/v1/publishers/${args.publisher_id}/applications`, applicationData);
+            return await this.callAdminAPIForMCP('post', `/api/v1/publishers/${args.publisher_id}/applications`, applicationData);
           }
           case 'hello_update_application': {
             // PUT /api/v1/publishers/:publisher/applications/:application
@@ -921,23 +932,29 @@ export class HelloMCPServer {
               }
             };
             
-            return await this.callAdminAPI('put', `/api/v1/publishers/${args.publisher_id}/applications/${args.application_id}`, updateData);
+            return await this.callAdminAPIForMCP('put', `/api/v1/publishers/${args.publisher_id}/applications/${args.application_id}`, updateData);
           }
           case 'hello_upload_logo': {
             if (args.image_url) {
               // Use URL query parameter approach (simpler and matches what works)
               const path = `/api/v1/publishers/${args.publisher_id}/applications/${args.application_id}/logo?url=${encodeURIComponent(args.image_url)}`;
-              return await this.callAdminAPI('post', path, null);
-            } else if (args.image_data) {
-              // Use multipart form data for binary upload
-              return await this.uploadLogoBinary(args.publisher_id, args.application_id, args.image_data, args.filename || 'logo.png');
+              return await this.callAdminAPIForMCP('post', path, null);
+                          } else if (args.image_data) {
+                // Use multipart form data for binary upload
+                const result = await this.uploadLogoBinary(args.publisher_id, args.application_id, args.image_data, args.filename || 'logo.png');
+                return {
+                  contents: [{
+                    type: 'text',
+                    text: JSON.stringify(result, null, 2)
+                  }]
+                };
             } else {
               throw new Error('Either image_url or image_data must be provided');
             }
           }
           case 'hello_create_secret': {
             // POST /api/v1/publishers/:publisher/applications/:application/secrets
-            return await this.callAdminAPI('post', `/api/v1/publishers/${args.publisher_id}/applications/${args.application_id}/secrets`, {
+            return await this.callAdminAPIForMCP('post', `/api/v1/publishers/${args.publisher_id}/applications/${args.application_id}/secrets`, {
               hash: args.hash,
               salt: args.salt
             });
