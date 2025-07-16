@@ -8,10 +8,10 @@ export const domain = process.env.HELLO_DOMAIN || 'hello.coop';
 export const MCP_CLIENT_ID = process.env.MCP_CLIENT_ID || 'hello_mcp_client';
 
 // Base URL constants
-export const ADMIN_BASE_URL = process.env.HELLO_ADMIN || `https://admin.${domain}`;
-export const MCP_BASE_URL = process.env.HELLO_MCP || `https://mcp.${domain}`;
-export const WALLET_BASE_URL = process.env.HELLO_WALLET || `https://wallet.${domain}`;
-export const ISSUER_BASE_URL = process.env.HELLO_ISSUER || `https://issuer.${domain}`;
+export const ADMIN_BASE_URL =  `https://admin.${domain}`;
+export const MCP_BASE_URL =  `https://mcp.${domain}`;
+export const WALLET_BASE_URL =  `https://wallet.${domain}`;
+export const ISSUER_BASE_URL =  `https://issuer.${domain}`;
 
 // OAuth Authorization Server Metadata (RFC 8414)
 export const OAUTH_AUTH_SERVER_METADATA = {

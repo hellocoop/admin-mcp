@@ -31,26 +31,23 @@ class MCPHttpServer {
     // Setup JWT validation
     await this.fastify.register(jwtValidationPlugin);
     
-    // CORS plugin - moved to preHandler for better reliability
-    await this.fastify.register(async (fastify) => {
-      // Set CORS headers on all responses using preHandler
-      fastify.addHook('preHandler', async (request, reply) => {
-        const origin = request.headers.origin || '*';
-        const requestedHeaders = request.headers['access-control-request-headers'];
-        
-        // Always set CORS headers
-        reply.header('Access-Control-Allow-Origin', origin);
-        reply.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-        reply.header('Access-Control-Allow-Headers', requestedHeaders || 'Authorization, Content-Type, Accept, Origin, X-Requested-With, mcp-protocol-version');
-        reply.header('Access-Control-Max-Age', '86400');
-        reply.header('Access-Control-Allow-Credentials', 'false');
-      });
+    // CORS
+    this.fastify.addHook('preHandler', async (request, reply) => {
+      const origin = request.headers.origin || '*';
+      const requestedHeaders = request.headers['access-control-request-headers'];
       
-      // Handle OPTIONS requests
-      fastify.options('*', async (request, reply) => {
-        reply.code(204);
-        return '';
-      });
+      // Always set CORS headers
+      reply.header('Access-Control-Allow-Origin', origin);
+      reply.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      reply.header('Access-Control-Allow-Headers', requestedHeaders || 'Authorization, Content-Type, Accept, Origin, X-Requested-With, mcp-protocol-version');
+      reply.header('Access-Control-Max-Age', '86400');
+      reply.header('Access-Control-Allow-Credentials', 'false');
+    });
+      
+    // Handle OPTIONS requests
+    this.fastify.options('*', async (request, reply) => {
+      reply.code(204);
+      return '';
     });
     
     // JSON parsing error handler
