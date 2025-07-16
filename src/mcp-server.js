@@ -9,6 +9,7 @@ import {
   SetLevelRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { ADMIN_BASE_URL } from './oauth-endpoints.js';
+import { apiLogInfo, apiLogError, getLogContext } from './log.js';
 import packageJson from './package.js';
 // FormData is now native in Node.js 22+
 
@@ -29,19 +30,33 @@ export class HelloMCPServer {
       }
     );
     this.accessToken = process.env.HELLO_ACCESS_TOKEN || null;
+    this.jwtPayload = null; // Store validated JWT payload
     this.adminUser = null;
     this.authenticationCallback = null;
-    console.log('🚀 MCP Server initialized with token from env:', this.accessToken ? `${this.accessToken.substring(0, 20)}...` : 'null');
+    // Token initialization logged through structured logging;
     this.setupHandlers();
   }
 
   setAccessToken(token) {
-    console.log('🔑 Setting access token:', token ? `${token.substring(0, 20)}...` : 'null');
+    // Token setting logged through structured logging;
     this.accessToken = token;
   }
 
-  setAuthenticationCallback(callback) {
-    this.authenticationCallback = callback;
+  // Set validated JWT payload for request context
+  setJWTPayload(payload) {
+    this.jwtPayload = payload;
+    if (payload) {
+      // Extract admin user info from JWT payload
+      this.adminUser = {
+        id: payload.sub,
+        email: payload.email || 'unknown',
+        name: payload.name || 'unknown',
+        picture: payload.picture || null,
+        scope: payload.scope || []
+      };
+    } else {
+      this.adminUser = null;
+    }
   }
 
   async handleRequest(request) {
@@ -106,10 +121,7 @@ export class HelloMCPServer {
         case 'tools/call':
           const callHandler = this.mcpServer._requestHandlers.get('tools/call');
           if (callHandler) {
-            const callResult = await callHandler({ 
-              method: 'tools/call', 
-              params: { name: params.name, arguments: params.arguments || {} }
-            });
+            const callResult = await callHandler({ method: 'tools/call', params: params || {} });
             return {
               jsonrpc: '2.0',
               id,
@@ -144,9 +156,9 @@ export class HelloMCPServer {
           }
 
         case 'resources/read':
-          const readResourceHandler = this.mcpServer._requestHandlers.get('resources/read');
-          if (readResourceHandler) {
-            const readResult = await readResourceHandler({ method: 'resources/read', params: params || {} });
+          const readHandler = this.mcpServer._requestHandlers.get('resources/read');
+          if (readHandler) {
+            const readResult = await readHandler({ method: 'resources/read', params: params || {} });
             return {
               jsonrpc: '2.0',
               id,
@@ -171,7 +183,12 @@ export class HelloMCPServer {
               pong: true,
               timestamp: new Date().toISOString(),
               server: 'hello-admin-mcp',
-              version: packageJson.version
+              version: packageJson.version,
+              user: this.adminUser ? {
+                id: this.adminUser.id,
+                name: this.adminUser.name,
+                email: this.adminUser.email
+              } : null
             }
           };
 
@@ -201,21 +218,24 @@ export class HelloMCPServer {
   // REST call to admin API using built-in fetch
   async callAdminAPI(method, path, data, options = {}) {
     const { requiresAuth = true, isRetry = false } = options;
-    
-    console.log('🌐 Calling Admin API:', method, path);
-    console.log('🔑 Current access token:', this.accessToken ? `${this.accessToken.substring(0, 20)}...` : 'null');
+    const startTime = performance.now();
     
     // Trigger authentication if we need auth but don't have a token
     if (requiresAuth && !this.accessToken && this.authenticationCallback) {
       try {
         this.accessToken = await this.authenticationCallback();
       } catch (error) {
+        apiLogError({
+          event: 'admin_api_auth_failed',
+          startTime,
+          message: `Authentication failed: ${error.message}`,
+          extra: { method, path, error: error.message }
+        });
         throw new Error(`Authentication failed: ${error.message}`);
       }
     }
 
     const url = ADMIN_BASE_URL + path;
-    console.log('🎯 Admin API URL:', url);
     const headers = {
       ...(requiresAuth && this.accessToken && { Authorization: `Bearer ${this.accessToken}` })
     };
@@ -224,8 +244,6 @@ export class HelloMCPServer {
     if (data && (method.toUpperCase() === 'POST' || method.toUpperCase() === 'PUT')) {
       headers['Content-Type'] = 'application/json';
     }
-    
-    console.log('📋 Request headers:', headers);
 
     const requestOptions = {
       method: method.toUpperCase(),
@@ -236,7 +254,46 @@ export class HelloMCPServer {
       requestOptions.body = JSON.stringify(data);
     }
 
-        try {
+    // Enhanced logging with JWT payload information
+    const logExtra = {
+      url,
+      method: method.toUpperCase(),
+      path,
+      hasAuth: !!this.accessToken,
+      hasData: !!data
+    };
+
+    // Add user context if available
+    if (this.jwtPayload) {
+      logExtra.user = {
+        sub: this.jwtPayload.sub,
+        jti: this.jwtPayload.jti,
+        scope: this.jwtPayload.scope
+      };
+    }
+
+    apiLogInfo({
+      event: 'admin_api_call',
+      startTime,
+      message: `Admin API ${method.toUpperCase()} ${path}`,
+      extra: logExtra
+    });
+
+    // Debug level logging for request parameters
+    const context = getLogContext();
+    if (context && context.logger) {
+      context.logger.debug({
+        event: 'admin_api_call_debug',
+        method: method.toUpperCase(),
+        path,
+        url,
+        requestData: data,
+        headers: Object.keys(headers),
+        hasAuth: !!this.accessToken
+      }, `Admin API ${method.toUpperCase()} ${path} - Request Details`);
+    }
+
+    try {
       const response = await fetch(url, requestOptions);
       const responseData = await response.json();
       
@@ -251,6 +308,12 @@ export class HelloMCPServer {
           // Retry the original request with new token
           return await this.callAdminAPI(method, path, data, { requiresAuth, isRetry: true });
         } catch (authError) {
+          apiLogError({
+            event: 'admin_api_reauth_failed',
+            startTime,
+            message: `Re-authentication failed: ${authError.message}`,
+            extra: { method, path, error: authError.message }
+          });
           throw new Error(`Re-authentication failed: ${authError.message}`);
         }
       }
@@ -258,6 +321,12 @@ export class HelloMCPServer {
       // For authentication errors, return an object with HTTP status and headers
       if (response.status === 401) {
         const wwwAuthHeader = response.headers.get('WWW-Authenticate');
+        apiLogError({
+          event: 'admin_api_auth_error',
+          startTime,
+          message: `Admin API authentication error: ${response.status}`,
+          extra: { method, path, status: response.status, wwwAuthHeader }
+        });
         return {
           _httpStatus: response.status,
           _httpHeaders: wwwAuthHeader ? { 'WWW-Authenticate': wwwAuthHeader } : {},
@@ -265,20 +334,46 @@ export class HelloMCPServer {
         };
       }
       
-      // For bad requests (400), throw an error with the response details
-      if (response.status === 400) {
-        throw new Error(`Bad request: ${responseData.error || responseData.error_description || 'Invalid request parameters'}`);
-      }
-      
-      // For other errors, throw with status and message
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${responseData.error || responseData.message || 'Unknown error'}`);
+      // Log successful response
+      apiLogInfo({
+        event: 'admin_api_response',
+        startTime,
+        message: `Admin API response ${response.status}`,
+        extra: { 
+          method, 
+          path, 
+          status: response.status,
+          duration_ms: performance.now() - startTime
+        }
+      });
+
+      // Debug level logging for response data
+      const context = getLogContext();
+      if (context && context.logger) {
+        context.logger.debug({
+          event: 'admin_api_response_debug',
+          method: method.toUpperCase(),
+          path,
+          status: response.status,
+          responseData: responseData,
+          duration_ms: performance.now() - startTime
+        }, `Admin API ${method.toUpperCase()} ${path} - Response Details`);
       }
       
       return responseData;
-    } catch (err) {
-      throw new Error(`API call failed: ${err.message}`);
+    } catch (error) {
+      apiLogError({
+        event: 'admin_api_error',
+        startTime,
+        message: `Admin API error: ${error.message}`,
+        extra: { method, path, error: error.message }
+      });
+      throw error;
     }
+  }
+
+  setAuthenticationCallback(callback) {
+    this.authenticationCallback = callback;
   }
 
   setupHandlers() {
@@ -549,53 +644,7 @@ export class HelloMCPServer {
               required: ['publisher_id', 'application_id', 'hash', 'salt']
             }
           },
-          {
-            name: 'hello_generate_login_button',
-            description: 'Generate HTML/JavaScript code for a Hellō login button. IMPORTANT: Consider your target audience - ask about preferred providers (Discord for gaming, GitHub for developers, etc.), domain preferences (personal vs managed accounts), and whether to pre-fill login hints. Hellō adapts to browser theme automatically. FOR AGENTS: Avoid using quickstart commands - instead build apps manually to showcase MCP capabilities and provide better learning experience. See https://www.hello.dev/docs/hello-buttons/ for customization options',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                application_id: {
-                  type: 'string',
-                  description: 'The Hellō application ID'
-                },
-                redirect_uri: {
-                  type: 'string',
-                  description: 'Where to redirect after login'
-                },
-                scopes: {
-                  type: 'array',
-                  items: { type: 'string' },
-                  description: 'Requested scopes',
-                  default: ['openid', 'name', 'email']
-                },
-                style: {
-                  type: 'string',
-                  enum: ['html-basic', 'html-styled', 'dark', 'react-component', 'nextjs-component'],
-                  description: 'Implementation type: html-basic (simple), html-styled/dark (production), react-component, nextjs-component',
-                  default: 'html-styled'
-                },
-                provider_hint: {
-                  type: 'array',
-                  items: { 
-                    type: 'string',
-                    enum: ['apple', 'discord', 'email', 'ethereum', 'facebook', 'github', 'gitlab', 'google', 'line', 'mastodon', 'microsoft', 'qrcode', 'tumblr', 'twitch', 'twitter', 'wordpress', 'yahoo', 'google--', 'apple--', 'microsoft--', 'email--']
-                  },
-                  description: 'Providers to promote (e.g. "discord", "github") or demote (e.g. "google--") in recommendations. Consider your target audience.',
-                  default: []
-                },
-                domain_hint: {
-                  type: 'string',
-                  description: 'Account type preference: "personal", "managed", or specific domain (e.g. "company.com")'
-                },
-                login_hint: {
-                  type: 'string',
-                  description: 'Pre-fill email address or suggest specific login method'
-                }
-              },
-              required: ['application_id', 'redirect_uri']
-            }
-          },
+
           {
             name: 'hello_generate_legal_docs',
             description: 'Generate comprehensive Terms of Service and Privacy Policy templates for your Hellō application. This tool helps create legally compliant documents by gathering detailed information about your business, data practices, and service offerings. The agent should ask follow-up questions to ensure comprehensive coverage.',
@@ -748,6 +797,12 @@ export class HelloMCPServer {
             name: 'Hellō Logo Design Guidance',
             description: 'Comprehensive guide for creating both light and dark theme logos for your Hellō application, including scaling, file requirements, and implementation tips',
             mimeType: 'text/markdown'
+          },
+          {
+            uri: 'hello://login-button-guidance',
+            name: 'Hellō Login Button Implementation Guide',
+            description: 'Complete guide for implementing Hellō login buttons including code examples, customization options, provider hints, and best practices',
+            mimeType: 'text/markdown'
           }
         ]
       };
@@ -764,6 +819,17 @@ export class HelloMCPServer {
             uri: uri,
             mimeType: 'text/markdown',
             text: logoGuidance
+          }]
+        };
+      }
+      
+      if (uri === 'hello://login-button-guidance') {
+        const loginButtonGuidance = this.generateLoginButtonGuidanceResource();
+        return {
+          contents: [{
+            uri: uri,
+            mimeType: 'text/markdown',
+            text: loginButtonGuidance
           }]
         };
       }
@@ -832,38 +898,28 @@ export class HelloMCPServer {
           }
           case 'hello_update_application': {
             // PUT /api/v1/publishers/:publisher/applications/:application
-            // Transform MCP parameters to Admin API format
-            const updateData = {
-              name: args.name,
-              tos_uri: args.tos_uri,
-              pp_uri: args.pp_uri,
-              image_uri: args.image_uri,
-              device_code: args.device_code
-            };
+            // First get the current application data to merge with updates
+            const currentApp = await this.callAdminAPI('get', `/api/v1/publishers/${args.publisher_id}/applications/${args.application_id}`);
             
-            // Only include web config if any web-related parameters are provided
-            if (args.dev_redirect_uris || args.prod_redirect_uris || 
-                args.localhost !== undefined || args.local_ip !== undefined || 
-                args.wildcard_domain !== undefined) {
-              updateData.web = {
+            // Transform MCP parameters to Admin API format, merging with current data
+            const updateData = {
+              name: args.name !== undefined ? args.name : currentApp.name,
+              tos_uri: args.tos_uri !== undefined ? args.tos_uri : currentApp.tos_uri,
+              pp_uri: args.pp_uri !== undefined ? args.pp_uri : currentApp.pp_uri,
+              image_uri: args.image_uri !== undefined ? args.image_uri : currentApp.image_uri,
+              device_code: args.device_code !== undefined ? args.device_code : currentApp.device_code,
+              web: {
                 dev: {
-                  localhost: args.localhost,
-                  "127.0.0.1": args.local_ip,
-                  wildcard_domain: args.wildcard_domain,
-                  redirect_uris: args.dev_redirect_uris
+                  localhost: args.localhost !== undefined ? args.localhost : currentApp.web.dev.localhost,
+                  "127.0.0.1": args.local_ip !== undefined ? args.local_ip : currentApp.web.dev["127.0.0.1"],
+                  wildcard_domain: args.wildcard_domain !== undefined ? args.wildcard_domain : currentApp.web.dev.wildcard_domain,
+                  redirect_uris: args.dev_redirect_uris !== undefined ? args.dev_redirect_uris : currentApp.web.dev.redirect_uris
                 },
                 prod: {
-                  redirect_uris: args.prod_redirect_uris
+                  redirect_uris: args.prod_redirect_uris !== undefined ? args.prod_redirect_uris : currentApp.web.prod.redirect_uris
                 }
-              };
-            }
-            
-            // Remove undefined values
-            Object.keys(updateData).forEach(key => {
-              if (updateData[key] === undefined) {
-                delete updateData[key];
               }
-            });
+            };
             
             return await this.callAdminAPI('put', `/api/v1/publishers/${args.publisher_id}/applications/${args.application_id}`, updateData);
           }
@@ -886,10 +942,7 @@ export class HelloMCPServer {
               salt: args.salt
             });
           }
-          case 'hello_generate_login_button': {
-            // POST /api/v1/generate-login-button
-            return await this.callAdminAPI('post', '/api/v1/generate-login-button', args);
-          }
+
           case 'hello_generate_legal_docs': {
             return await this.generateLegalDocs(args);
           }
@@ -1015,7 +1068,319 @@ Hellō automatically adapts to users' browser theme preferences (light/dark mode
 Need help with implementation? Check out our [logo documentation](https://www.hello.dev/docs/hello-buttons/#logos) for more details!`;
   }
 
+  generateLoginButtonGuidanceResource() {
+    return `# 🔐 Hellō Login Button Implementation Guide
 
+## 📖 Overview
+
+This guide provides comprehensive instructions for implementing Hellō login buttons in your application. Instead of generating HTML code, we'll show you how to implement the buttons yourself with full customization control.
+
+## 🚀 Quick Start
+
+### 1. Basic HTML Implementation
+
+\`\`\`html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hellō Login Example</title>
+    <script src="https://cdn.hello.coop/js/hello-btn.js"></script>
+</head>
+<body>
+    <hello-btn 
+        client_id="YOUR_APPLICATION_ID"
+        redirect_uri="YOUR_REDIRECT_URI"
+        scope="openid name email">
+        Continue with Hellō
+    </hello-btn>
+</body>
+</html>
+\`\`\`
+
+### 2. React Implementation
+
+\`\`\`jsx
+import React from 'react';
+
+const HelloButton = ({ clientId, redirectUri, onSuccess }) => {
+  useEffect(() => {
+    // Load Hello button script
+    const script = document.createElement('script');
+    script.src = 'https://cdn.hello.coop/js/hello-btn.js';
+    document.head.appendChild(script);
+    
+    return () => {
+      document.head.removeChild(script);
+    };
+  }, []);
+
+  return (
+    <hello-btn 
+      client_id={clientId}
+      redirect_uri={redirectUri}
+      scope="openid name email"
+    >
+      Continue with Hellō
+    </hello-btn>
+  );
+};
+\`\`\`
+
+### 3. Next.js Implementation
+
+\`\`\`jsx
+import { useEffect } from 'react';
+import Script from 'next/script';
+
+export default function LoginPage() {
+  return (
+    <>
+      <Script src="https://cdn.hello.coop/js/hello-btn.js" />
+      <hello-btn 
+        client_id={process.env.NEXT_PUBLIC_HELLO_CLIENT_ID}
+        redirect_uri={process.env.NEXT_PUBLIC_REDIRECT_URI}
+        scope="openid name email"
+      >
+        Continue with Hellō
+      </hello-btn>
+    </>
+  );
+}
+\`\`\`
+
+## ⚙️ Configuration Options
+
+### Required Parameters
+
+- **\`client_id\`**: Your Hellō application ID
+- **\`redirect_uri\`**: Where to redirect after login (must be registered in your app)
+
+### Optional Parameters
+
+- **\`scope\`**: Requested scopes (default: "openid name email")
+- **\`provider_hint\`**: Preferred providers (see Provider Hints section)
+- **\`domain_hint\`**: Account type preference
+- **\`login_hint\`**: Pre-fill email or suggest login method
+- **\`nonce\`**: Security nonce (recommended for production)
+- **\`state\`**: Custom state parameter
+
+## 🎯 Provider Hints
+
+Customize which identity providers to promote or demote:
+
+### Promote Providers (Target Audience)
+\`\`\`html
+<!-- For Gaming Apps -->
+<hello-btn provider_hint="discord">Login to Game</hello-btn>
+
+<!-- For Developer Tools -->
+<hello-btn provider_hint="github">Continue with GitHub</hello-btn>
+
+<!-- For Business Apps -->
+<hello-btn provider_hint="microsoft">Sign in with Microsoft</hello-btn>
+
+<!-- Multiple Providers -->
+<hello-btn provider_hint="github discord">Developer Login</hello-btn>
+\`\`\`
+
+### Demote Providers
+\`\`\`html
+<!-- Demote Google (add -- suffix) -->
+<hello-btn provider_hint="github google--">Prefer GitHub</hello-btn>
+\`\`\`
+
+### Available Providers
+- \`apple\` - Apple ID
+- \`discord\` - Discord
+- \`email\` - Email/Password
+- \`ethereum\` - Ethereum Wallet
+- \`facebook\` - Facebook
+- \`github\` - GitHub
+- \`gitlab\` - GitLab
+- \`google\` - Google
+- \`line\` - LINE
+- \`mastodon\` - Mastodon
+- \`microsoft\` - Microsoft
+- \`qrcode\` - QR Code
+- \`tumblr\` - Tumblr
+- \`twitch\` - Twitch
+- \`twitter\` - Twitter/X
+- \`wordpress\` - WordPress
+- \`yahoo\` - Yahoo
+
+## 🏢 Domain Hints
+
+Control account type preferences:
+
+\`\`\`html
+<!-- Personal accounts preferred -->
+<hello-btn domain_hint="personal">Personal Login</hello-btn>
+
+<!-- Business accounts preferred -->
+<hello-btn domain_hint="managed">Business Login</hello-btn>
+
+<!-- Specific domain -->
+<hello-btn domain_hint="company.com">Company Login</hello-btn>
+\`\`\`
+
+## 🎨 Styling & Themes
+
+### Automatic Theme Detection
+Hellō buttons automatically adapt to your site's theme:
+- **Light theme**: Dark text on light background
+- **Dark theme**: Light text on dark background
+
+### Custom Styling
+\`\`\`css
+hello-btn {
+  --hello-btn-bg: #your-brand-color;
+  --hello-btn-color: #your-text-color;
+  --hello-btn-border: #your-border-color;
+  --hello-btn-hover-bg: #your-hover-color;
+}
+\`\`\`
+
+### Size Variants
+\`\`\`html
+<!-- Small -->
+<hello-btn size="sm">Small Button</hello-btn>
+
+<!-- Medium (default) -->
+<hello-btn>Medium Button</hello-btn>
+
+<!-- Large -->
+<hello-btn size="lg">Large Button</hello-btn>
+\`\`\`
+
+## 📱 Mobile Considerations
+
+### Responsive Design
+\`\`\`html
+<hello-btn 
+  style="width: 100%; max-width: 300px;"
+  client_id="YOUR_APP_ID"
+  redirect_uri="YOUR_REDIRECT_URI">
+  Continue with Hellō
+</hello-btn>
+\`\`\`
+
+### Mobile-Optimized Flow
+\`\`\`html
+<hello-btn 
+  target_uri="YOUR_MOBILE_DEEP_LINK"
+  client_id="YOUR_APP_ID">
+  Open in App
+</hello-btn>
+\`\`\`
+
+## 🔒 Security Best Practices
+
+### Use PKCE (Proof Key for Code Exchange)
+\`\`\`javascript
+// Generate PKCE parameters
+const codeVerifier = generateCodeVerifier();
+const codeChallenge = await generateCodeChallenge(codeVerifier);
+
+// Store code_verifier securely for token exchange
+sessionStorage.setItem('code_verifier', codeVerifier);
+\`\`\`
+
+### Include State Parameter
+\`\`\`html
+<hello-btn 
+  state="YOUR_RANDOM_STATE"
+  client_id="YOUR_APP_ID"
+  redirect_uri="YOUR_REDIRECT_URI">
+  Secure Login
+</hello-btn>
+\`\`\`
+
+### Use Nonce for ID Tokens
+\`\`\`html
+<hello-btn 
+  nonce="YOUR_RANDOM_NONCE"
+  scope="openid name email"
+  client_id="YOUR_APP_ID">
+  Login with ID Token
+</hello-btn>
+\`\`\`
+
+## 🛠️ Implementation Examples
+
+### E-commerce Site
+\`\`\`html
+<hello-btn 
+  client_id="YOUR_SHOP_ID"
+  redirect_uri="https://shop.example.com/auth/callback"
+  scope="openid name email"
+  provider_hint="google apple"
+  domain_hint="personal">
+  Quick Checkout
+</hello-btn>
+\`\`\`
+
+### Developer Platform
+\`\`\`html
+<hello-btn 
+  client_id="YOUR_DEV_PLATFORM_ID"
+  redirect_uri="https://dev.example.com/auth/callback"
+  scope="openid name email"
+  provider_hint="github gitlab"
+  domain_hint="managed">
+  Developer Sign In
+</hello-btn>
+\`\`\`
+
+### Gaming Application
+\`\`\`html
+<hello-btn 
+  client_id="YOUR_GAME_ID"
+  redirect_uri="https://game.example.com/auth/callback"
+  scope="openid name email picture"
+  provider_hint="discord twitch"
+  domain_hint="personal">
+  Join Game
+</hello-btn>
+\`\`\`
+
+## 📋 Testing Checklist
+
+- [ ] Button loads correctly in all target browsers
+- [ ] Redirect URI is registered in your Hellō application
+- [ ] HTTPS is enabled for production redirect URIs
+- [ ] State parameter is validated on callback
+- [ ] Error handling is implemented for failed logins
+- [ ] Button styling matches your brand
+- [ ] Mobile experience is optimized
+- [ ] Provider hints work as expected
+
+## 🔗 Additional Resources
+
+- **[Hellō Button Documentation](https://www.hello.dev/docs/hello-buttons/)** - Complete API reference
+- **[Scopes and Claims](https://www.hello.dev/docs/hello-scopes/)** - Available user data
+- **[Wallet API](https://www.hello.dev/docs/apis/wallet/)** - Advanced configuration
+- **[Security Best Practices](https://www.hello.dev/docs/security/)** - Production security guide
+
+## 🎯 Pro Tips
+
+1. **Consider Your Audience**: Use provider hints that match your user base
+2. **Test Thoroughly**: Different providers have different UX flows
+3. **Handle Errors**: Always implement proper error handling
+4. **Monitor Performance**: Track login success rates by provider
+5. **Stay Updated**: Check for new providers and features regularly
+
+## 🆘 Need Help?
+
+If you need assistance with implementation:
+1. Check the [documentation](https://www.hello.dev/docs/)
+2. Review the [examples repository](https://github.com/hellocoop/examples)
+3. Join our [Discord community](https://discord.gg/hello)
+4. Contact support at [help@hello.coop](mailto:help@hello.coop)
+
+---
+
+*This guide provides the foundation for implementing Hellō login buttons. For the most up-to-date information and advanced features, always refer to the official documentation at [hello.dev](https://www.hello.dev/docs/).*`;
+  }
 
   async generateLegalDocs(args) {
     const {
@@ -1396,8 +1761,7 @@ After hosting these documents, update your Hellō application:
       const domain = process.env.HELLO_DOMAIN || 'hello.coop';
       const adminUrl = `https://admin.${domain}/api/v1/publishers/${publisherId}/applications/${applicationId}/logo`;
       
-      console.log('🔑 Current access token:', this.accessToken ? `${this.accessToken.substring(0, 20)}...` : 'null');
-      console.log('🎯 Admin API URL:', adminUrl);
+      // Token and URL info logged through structured logging
       
       const response = await fetch(adminUrl, {
         method: 'POST',
@@ -1414,7 +1778,7 @@ After hosting these documents, update your Hellō application:
       }
       
       const result = await response.json();
-      console.log('✅ Binary logo uploaded successfully:', result.image_uri);
+              // Logo upload success logged through structured logging
       return result;
       
     } catch (error) {
