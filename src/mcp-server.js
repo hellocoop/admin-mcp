@@ -379,6 +379,10 @@ export class HelloMCPServer {
       contents: [{
         type: 'text',
         text: JSON.stringify(result, null, 2)
+      }],
+      content: [{
+        type: 'text',
+        text: JSON.stringify(result, null, 2)
       }]
     };
   }
@@ -858,13 +862,7 @@ export class HelloMCPServer {
             // GET /api/v1/profile or /api/v1/profile/:publisher
             let path = '/api/v1/profile';
             if (args.publisher_id) path += `/${args.publisher_id}`;
-            const result = await this.callAdminAPI('get', path);
-            return {
-              contents: [{
-                type: 'text',
-                text: JSON.stringify(result, null, 2)
-              }]
-            };
+            return await this.callAdminAPIForMCP('get', path);
           }
           case 'hello_create_publisher': {
             // POST /api/v1/publishers
