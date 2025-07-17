@@ -3,12 +3,13 @@
 // Checks scope, issuer, audience, and expiration
 
 import jwt from 'jsonwebtoken'
+import { HELLO_DOMAIN, HELLO_ISSUER, HELLO_AUDIENCE } from './config.js';
 
-const DOMAIN = process.env.HELLO_DOMAIN || 'hello.coop'
+const DOMAIN = HELLO_DOMAIN;
 
 // Expected values for JWT validation
-const EXPECTED_ISSUER = process.env.HELLO_ISSUER || `https://issuer.${DOMAIN}`
-const EXPECTED_AUDIENCE = process.env.HELLO_AUDIENCE || `https://admin.${DOMAIN}`
+const EXPECTED_ISSUER = HELLO_ISSUER;
+const EXPECTED_AUDIENCE = HELLO_AUDIENCE;
 const REQUIRED_SCOPE = 'quickstart'
 
 /**

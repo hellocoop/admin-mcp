@@ -8,6 +8,7 @@ import { createWellKnownHandlers } from './oauth-endpoints.js';
 import { setupLogging, logOptions } from './log.js';
 import { jwtValidationPlugin } from './jwt-validation.js';
 import packageJson from './package.js';
+import { PORT, HOST, CONFIG } from './config.js';
 
 /**
  * Validates authentication for MCP requests
@@ -88,8 +89,8 @@ async function validateAuthentication(request, reply) {
 
 class MCPHttpServer {
   constructor(options = {}) {
-    this.port = options.port || process.env.PORT || 3000;
-    this.host = options.host || '0.0.0.0';
+    this.port = options.port || PORT;
+    this.host = options.host || HOST;
     
     this.fastify = Fastify(logOptions);
     this.mcpServer = new HelloMCPServer();
@@ -311,16 +312,9 @@ class MCPHttpServer {
       const startInfo = {
         event: 'server-start',
         config: {
+          ...CONFIG,
           HOST: this.host,
-          PORT: this.port.toString(),
-          NODE_ENV: process.env.NODE_ENV || 'development',
-          HELLO_DOMAIN: process.env.HELLO_DOMAIN || 'hello.coop',
-          HELLO_ISSUER: process.env.HELLO_ISSUER || `https://issuer.${process.env.HELLO_DOMAIN || 'hello.coop'}`,
-          HELLO_AUDIENCE: process.env.HELLO_AUDIENCE || `https://mcp.${process.env.HELLO_DOMAIN || 'hello.coop'}`,
-          HELLO_ADMIN: process.env.HELLO_ADMIN || 'http://admin:8000',
-          VERSION: packageJson.version,
-          NAME: packageJson.name,
-          DESCRIPTION: packageJson.description
+          PORT: this.port.toString()
         }
       };
       

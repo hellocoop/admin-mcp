@@ -8,6 +8,7 @@ import {
   ReadResourceRequestSchema,
   SetLevelRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import { HELLO_ADMIN, HELLO_ACCESS_TOKEN, NEXT_PUBLIC_HELLO_CLIENT_ID, NEXT_PUBLIC_REDIRECT_URI, HELLO_DOMAIN } from './config.js';
 import { ADMIN_BASE_URL } from './oauth-endpoints.js';
 import { apiLogInfo, apiLogError, getLogContext } from './log.js';
 import packageJson from './package.js';
@@ -29,12 +30,64 @@ export class HelloMCPServer {
         }
       }
     );
-    this.accessToken = process.env.HELLO_ACCESS_TOKEN || null;
+    this.accessToken = HELLO_ACCESS_TOKEN;
     this.jwtPayload = null; // Store validated JWT payload
     this.adminUser = null;
     this.authenticationCallback = null;
     // Token initialization logged through structured logging;
     this.setupHandlers();
+  }
+
+  // Supported mimetypes - must match Admin API fileExtensions
+  static SUPPORTED_MIMETYPES = [
+    'image/png',
+    'image/jpeg',
+    'image/gif',
+    'image/webp',
+    'image/apng',
+    'image/svg+xml'
+  ];
+
+  // Validate mimetype for logo uploads
+  validateMimeType(mimeType) {
+    if (!mimeType) {
+      return { valid: false, error: 'Missing mimetype' };
+    }
+    
+    if (!HelloMCPServer.SUPPORTED_MIMETYPES.includes(mimeType)) {
+      return { 
+        valid: false, 
+        error: `Unsupported mimetype: ${mimeType}. Supported types: ${HelloMCPServer.SUPPORTED_MIMETYPES.join(', ')}` 
+      };
+    }
+    
+    return { valid: true };
+  }
+
+  // Detect mimetype from base64 data or filename
+  detectMimeType(base64Data, filename) {
+    // Try to detect from data URL prefix first
+    const dataUrlMatch = base64Data.match(/^data:([^;]+);base64,/);
+    if (dataUrlMatch) {
+      return dataUrlMatch[1];
+    }
+    
+    // Fall back to filename extension
+    if (filename) {
+      const ext = filename.toLowerCase().split('.').pop();
+      const mimeTypes = {
+        'png': 'image/png',
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'gif': 'image/gif',
+        'webp': 'image/webp',
+        'apng': 'image/apng',
+        'svg': 'image/svg+xml'
+      };
+      return mimeTypes[ext] || null;
+    }
+    
+    return null;
   }
 
   setAccessToken(token) {
@@ -235,7 +288,7 @@ export class HelloMCPServer {
       }
     }
 
-    const url = ADMIN_BASE_URL + path;
+    const url = HELLO_ADMIN + path;
     const headers = {
       ...(requiresAuth && this.accessToken && { Authorization: `Bearer ${this.accessToken}` })
     };
@@ -580,10 +633,6 @@ export class HelloMCPServer {
                   type: 'boolean',
                   description: 'Support device code flow'
                 },
-                image_uri: {
-                  type: 'string',
-                  description: 'Application logo URI'
-                },
                 local_ip: {
                   type: 'boolean',
                   description: 'Allow 127.0.0.1 in development'
@@ -609,8 +658,8 @@ export class HelloMCPServer {
             }
           },
           {
-            name: 'hello_upload_logo',
-            description: 'Upload a logo image for a Hellō application. Can upload from URL or direct image data.',
+            name: 'hello_update_logo',
+            description: 'Update a logo for a Hellō application. Can upload from URL or direct image data. Updates the application with the new logo URL and returns the full application state.',
             inputSchema: {
               type: 'object',
               properties: {
@@ -624,16 +673,25 @@ export class HelloMCPServer {
                 },
                 image_url: {
                   type: 'string',
-                  description: 'URL of the image to upload (the image will be downloaded and uploaded to Hellō)'
+                  description: 'URL of the image to upload (the image will be downloaded and uploaded to Hellō). Supported formats: PNG, JPG/JPEG, GIF, WebP, APNG, SVG'
                 },
                 image_data: {
                   type: 'string',
-                  description: 'Base64 encoded image data (PNG, JPG, GIF, WebP, SVG)'
+                  description: 'Base64 encoded image data. Supported formats: PNG, JPG/JPEG, GIF, WebP, APNG, SVG',
+                  supportedMimeTypes: [
+                    'image/png',
+                    'image/jpeg',
+                    'image/gif', 
+                    'image/webp',
+                    'image/apng',
+                    'image/svg+xml'
+                  ]
                 },
-                filename: {
+                theme: {
                   type: 'string',
-                  description: 'Original filename (optional, for reference)',
-                  default: 'logo.png'
+                  enum: ['light', 'dark'],
+                  description: 'Theme for the logo - light theme logo (dark elements) or dark theme logo (light elements)',
+                  default: 'light'
                 }
               },
               required: ['publisher_id', 'application_id'],
@@ -828,6 +886,12 @@ export class HelloMCPServer {
             mimeType: 'text/markdown'
           },
           {
+            uri: 'hello://supported-logo-formats',
+            name: 'Supported Logo Formats',
+            description: 'List of supported image formats and mimetypes for logo uploads',
+            mimeType: 'application/json'
+          },
+          {
             uri: 'hello://login-button-guidance',
             name: 'Hellō Login Button Implementation Guide',
             description: 'Complete guide for implementing Hellō login buttons including code examples, customization options, provider hints, and best practices',
@@ -848,6 +912,28 @@ export class HelloMCPServer {
             uri: uri,
             mimeType: 'text/markdown',
             text: logoGuidance
+          }]
+        };
+      }
+      
+      if (uri === 'hello://supported-logo-formats') {
+        return {
+          contents: [{
+            uri: uri,
+            mimeType: 'application/json',
+            text: JSON.stringify({
+              supportedMimeTypes: HelloMCPServer.SUPPORTED_MIMETYPES,
+              supportedExtensions: ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.apng', '.svg'],
+              recommendedFormat: 'PNG',
+              maxFileSize: '100KB',
+              notes: [
+                'PNG format is recommended for transparency support',
+                'SVG files are sanitized for security',
+                'All images are scaled to fit within 400px × 100px',
+                'Both light and dark theme versions are recommended',
+                'Image data must include data URL prefix (e.g., data:image/png;base64,...)'
+              ]
+            }, null, 2)
           }]
         };
       }
@@ -929,7 +1015,8 @@ export class HelloMCPServer {
               name: args.name !== undefined ? args.name : currentApp.name,
               tos_uri: args.tos_uri !== undefined ? args.tos_uri : currentApp.tos_uri,
               pp_uri: args.pp_uri !== undefined ? args.pp_uri : currentApp.pp_uri,
-              image_uri: args.image_uri !== undefined ? args.image_uri : currentApp.image_uri,
+              image_uri: currentApp.image_uri, // Preserve existing logo URLs
+              dark_image_uri: currentApp.dark_image_uri,
               device_code: args.device_code !== undefined ? args.device_code : currentApp.device_code,
               web: {
                 dev: {
@@ -946,27 +1033,58 @@ export class HelloMCPServer {
             
             return await this.callAdminAPIForMCP('put', `/api/v1/publishers/${args.publisher_id}/applications/${args.application_id}`, updateData);
           }
-          case 'hello_upload_logo': {
+          case 'hello_update_logo': {
+            // Step 1: Get current application state
+            const currentApp = await this.callAdminAPI('get', `/api/v1/publishers/${args.publisher_id}/applications/${args.application_id}`);
+            
+            // Step 2: Upload the logo and get the URL
+            let logoUrl;
             if (args.image_url) {
               // Use URL query parameter approach (simpler and matches what works)
               const path = `/api/v1/publishers/${args.publisher_id}/applications/${args.application_id}/logo?url=${encodeURIComponent(args.image_url)}`;
-              return await this.callAdminAPIForMCP('post', path, null);
-                          } else if (args.image_data) {
-                // Use multipart form data for binary upload
-                const result = await this.uploadLogoBinary(args.publisher_id, args.application_id, args.image_data, args.filename || 'logo.png');
-                return {
-                  contents: [{
-                    type: 'text',
-                    text: JSON.stringify(result, null, 2)
-                  }],
-                  content: [{
-                    type: 'text',
-                    text: JSON.stringify(result, null, 2)
-                  }]
-                };
+              const uploadResult = await this.callAdminAPI('post', path, null);
+              logoUrl = uploadResult.image_uri;
+            } else if (args.image_data) {
+              // Validate mimetype before uploading
+              const detectedMimeType = this.detectMimeType(args.image_data);
+              if (!detectedMimeType) {
+                throw new Error('Could not determine image format. Please ensure the image data includes a data URL prefix (e.g., data:image/png;base64,...)');
+              }
+              
+              const mimeValidation = this.validateMimeType(detectedMimeType);
+              if (!mimeValidation.valid) {
+                throw new Error(mimeValidation.error);
+              }
+              
+              // Use multipart form data for binary upload (no filename needed)
+              const uploadResult = await this.uploadLogoBinary(args.publisher_id, args.application_id, args.image_data);
+              logoUrl = uploadResult.image_uri;
             } else {
               throw new Error('Either image_url or image_data must be provided');
             }
+            
+            // Step 3: Update the application with the new logo URL
+            const theme = args.theme || 'light';
+            const updateData = {
+              ...currentApp,
+              // Update the appropriate logo field based on theme
+              [theme === 'light' ? 'image_uri' : 'dark_image_uri']: logoUrl
+            };
+            
+            // Step 4: Call the application update API
+            const updatedApp = await this.callAdminAPI('put', `/api/v1/publishers/${args.publisher_id}/applications/${args.application_id}`, updateData);
+            
+            // Step 5: Return the full application state
+            return {
+              contents: [{
+                type: 'text',
+                text: JSON.stringify(updatedApp, null, 2)
+              }],
+              content: [{
+                type: 'text',
+                text: JSON.stringify(updatedApp, null, 2)
+              }]
+            };
           }
           case 'hello_create_secret': {
             // POST /api/v1/publishers/:publisher/applications/:application/secrets
@@ -1025,7 +1143,7 @@ export class HelloMCPServer {
 - **400×50px logo:** Displays at 400×50px (shorter but full width)
 
 ## 📄 File Requirements
-- **Supported Formats:** .png, .gif, .jpg/.jpeg, .webp, .apng
+- **Supported Formats:** .png, .gif, .jpg/.jpeg, .webp, .apng, .svg
 - **Recommended Format:** PNG (for transparency support)
 - **File Size:** Keep under 100KB for fast loading
 - **Background:** Transparent PNG preferred for versatility
@@ -1078,13 +1196,15 @@ Hellō automatically adapts to users' browser theme preferences (light/dark mode
 - [ ] Test both versions against their target backgrounds
 - [ ] Ensure logos scale well from 50px to 400px width
 - [ ] Optimize file sizes (aim for under 100KB each)
-- [ ] Upload using \`hello_upload_logo\` or \`hello_upload_logo_file\`
+- [ ] Upload light theme logo using \`hello_update_logo\` with \`theme: "light"\`
+- [ ] Upload dark theme logo using \`hello_update_logo\` with \`theme: "dark"\`
+- [ ] Verify both logos appear in application state using \`hello_read_application\`
 
 ## 🛠️ Tools Available
 
-- \`hello_upload_logo\` - Upload logo from URL
-- \`hello_upload_logo_file\` - Upload logo file directly
-- \`hello_update_application\` - Update your app with new logo URLs
+- \`hello_update_logo\` - Update logo from URL or binary data with theme support
+- \`hello_read_application\` - Read current application state including logo URLs
+- \`hello_update_application\` - Update other application settings (logos are handled separately)
 
 ## 🎨 Brand Color Considerations
 
@@ -1097,6 +1217,43 @@ Hellō automatically adapts to users' browser theme preferences (light/dark mode
 - Use lighter tints of your brand colors
 - Consider accent colors that complement your brand
 - Test against dark backgrounds (#121212, #1e1e1e)
+
+## 🔄 Logo Update Workflow
+
+### Using the \`hello_update_logo\` Tool
+
+The \`hello_update_logo\` tool handles the complete logo update process:
+
+1. **Gets current application state** from the admin server
+2. **Uploads your logo** (from URL or binary data)
+3. **Updates the application** with the new logo URL
+4. **Returns the full application state** including both \`image_uri\` and \`dark_image_uri\`
+
+### Examples
+
+\`\`\`javascript
+// Upload light theme logo from URL
+{
+  "publisher_id": "pub_123",
+  "application_id": "app_456", 
+  "image_url": "https://example.com/logo-light.png",
+  "theme": "light"
+}
+
+// Upload dark theme logo from binary data
+{
+  "publisher_id": "pub_123",
+  "application_id": "app_456",
+  "image_data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
+  "theme": "dark"
+}
+\`\`\`
+
+### Reading Application State
+
+Use \`hello_read_application\` to see both logo URLs:
+- \`image_uri\` - Light theme logo (dark elements)
+- \`dark_image_uri\` - Dark theme logo (light elements)
 
 Need help with implementation? Check out our [logo documentation](https://www.hello.dev/docs/hello-buttons/#logos) for more details!`;
   }
@@ -1170,8 +1327,8 @@ export default function LoginPage() {
     <>
       <Script src="https://cdn.hello.coop/js/hello-btn.js" />
       <hello-btn 
-        client_id={process.env.NEXT_PUBLIC_HELLO_CLIENT_ID}
-        redirect_uri={process.env.NEXT_PUBLIC_REDIRECT_URI}
+        client_id={NEXT_PUBLIC_HELLO_CLIENT_ID}
+        redirect_uri={NEXT_PUBLIC_REDIRECT_URI}
         scope="openid name email"
       >
         Continue with Hellō
@@ -1760,38 +1917,41 @@ After hosting these documents, update your Hellō application:
 ⚠️  **Important:** These are template documents. Always consult with a qualified attorney to ensure compliance with applicable laws and regulations for your specific situation.`;
   }
 
-  async uploadLogoBinary(publisherId, applicationId, base64ImageData, filename) {
+  async uploadLogoBinary(publisherId, applicationId, base64ImageData) {
     try {
+      // Detect mimetype from data URL prefix
+      const detectedMimeType = this.detectMimeType(base64ImageData);
+      if (!detectedMimeType) {
+        throw new Error('Could not determine image format from data');
+      }
+      
       // Remove data URL prefix if present
-      const base64Data = base64ImageData.replace(/^data:image\/[a-z]+;base64,/, '');
+      const base64Data = base64ImageData.replace(/^data:image\/[a-z+]+;base64,/, '');
       
       // Convert base64 to buffer
       const buffer = Buffer.from(base64Data, 'base64');
-      
-      // Detect mime type from filename or default to PNG
-      let mimeType = 'image/png';
-      if (filename) {
-        const ext = filename.toLowerCase().split('.').pop();
-        const mimeTypes = {
-          'png': 'image/png',
-          'jpg': 'image/jpeg',
-          'jpeg': 'image/jpeg',
-          'gif': 'image/gif',
-          'webp': 'image/webp',
-          'svg': 'image/svg+xml'
-        };
-        mimeType = mimeTypes[ext] || 'image/png';
-      }
       
       // Create FormData for multipart upload using native APIs
       const formData = new FormData();
       
       // Create a Blob from the buffer (Node.js 22+ has native Blob support)
-      const blob = new Blob([buffer], { type: mimeType });
+      const blob = new Blob([buffer], { type: detectedMimeType });
+      
+      // Generate filename based on mimetype
+      const extensions = {
+        'image/png': '.png',
+        'image/jpeg': '.jpg',
+        'image/gif': '.gif',
+        'image/webp': '.webp',
+        'image/apng': '.apng',
+        'image/svg+xml': '.svg'
+      };
+      const extension = extensions[detectedMimeType] || '.png';
+      const filename = `logo${extension}`;
       
       formData.append('file', blob, filename);
       
-      const domain = process.env.HELLO_DOMAIN || 'hello.coop';
+      const domain = HELLO_DOMAIN;
       const adminUrl = `https://admin.${domain}/api/v1/publishers/${publisherId}/applications/${applicationId}/logo`;
       
       // Token and URL info logged through structured logging

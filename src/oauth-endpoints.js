@@ -1,17 +1,18 @@
 // OAuth endpoints and well-known metadata
 // Static configuration with environment variable overrides
 
+import {
+  HELLO_DOMAIN,
+  MCP_CLIENT_ID,
+  ADMIN_BASE_URL,
+  MCP_BASE_URL,
+  WALLET_BASE_URL,
+  ISSUER_BASE_URL
+} from './config.js';
 
-export const domain = process.env.HELLO_DOMAIN || 'hello.coop';
-
-// MCP Client Configuration
-export const MCP_CLIENT_ID = process.env.MCP_CLIENT_ID || 'hello_mcp_client';
-
-// Base URL constants
-export const ADMIN_BASE_URL =  `https://admin.${domain}`;
-export const MCP_BASE_URL =  `https://mcp.${domain}`;
-export const WALLET_BASE_URL =  `https://wallet.${domain}`;
-export const ISSUER_BASE_URL =  `https://issuer.${domain}`;
+// Re-export for backward compatibility
+export const domain = HELLO_DOMAIN;
+export { MCP_CLIENT_ID, ADMIN_BASE_URL, MCP_BASE_URL, WALLET_BASE_URL, ISSUER_BASE_URL };
 
 // OAuth Authorization Server Metadata (RFC 8414)
 export const OAUTH_AUTH_SERVER_METADATA = {

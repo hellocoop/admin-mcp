@@ -257,10 +257,12 @@ export const apiLogError = ({ event, startTime, message, extra = {} }) => {
 } 
 
 // Fastify logging configuration (similar to Wallet server)
+import { LOG_LEVEL, IS_DEVELOPMENT } from './config.js';
+
 export const logOptions = {
   disableRequestLogging: true, // Disable automatic request logging
   logger: {
-    level: process.env.LOG_LEVEL || 'info',
+    level: LOG_LEVEL,
     base: null, // Removes `pid` and `hostname`
     formatters: {
       level(label) {
@@ -268,7 +270,7 @@ export const logOptions = {
       },
     },
     timestamp: () => `,"timestamp":"${new Date().toISOString()}"`, // ISO 8601 timestamp
-    transport: (process.env.NODE_ENV === 'development') ? {
+    transport: IS_DEVELOPMENT ? {
       target: 'pino-pretty',
       options: {
         colorize: true, // Color logs in development

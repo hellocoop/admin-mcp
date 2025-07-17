@@ -68,7 +68,7 @@ class MCPToolTester {
         'hello_read_application',
         'hello_create_application',
         'hello_update_application',
-        'hello_upload_logo',
+        'hello_update_logo',
         'hello_create_secret',
         'hello_generate_legal_docs'
       ];
@@ -113,7 +113,7 @@ class MCPToolTester {
       });
 
       const resources = result.resources;
-      const expectedResourceCount = 7;
+      const expectedResourceCount = 8;
       
       if (!Array.isArray(resources)) {
         throw new Error('resources is not an array');
@@ -130,7 +130,9 @@ class MCPToolTester {
         'Hellō Buttons',
         'Hellō Scopes',
         'Hellō Wallet API',
-        'Hellō Logo Design Guidance'
+        'Hellō Logo Design Guidance',
+        'Supported Logo Formats',
+        'Hellō Login Button Implementation Guide'
       ];
 
       const resourceNames = resources.map(r => r.name);
