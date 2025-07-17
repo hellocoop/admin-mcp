@@ -1,12 +1,12 @@
 {
   "name": "@hellocoop/mcp",
-  "version": "1.0.28",
+  "version": "1.0.29",
   "description": "Model Context Protocol (MCP) for Hellō Admin API.",
   "type": "module",
   "main": "src/index.js",
   "bin": {
-    "@hellocoop/mcp": "./src/stdio.js",
-    "hello-mcp-http": "./src/http.js"
+    "hello-mcp-http": "src/http.js",
+    "mcp": "src/stdio.js"
   },
   "scripts": {
     "start": "node src/stdio.js",
