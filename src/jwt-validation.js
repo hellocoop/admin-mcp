@@ -8,7 +8,7 @@ const DOMAIN = process.env.HELLO_DOMAIN || 'hello.coop'
 
 // Expected values for JWT validation
 const EXPECTED_ISSUER = process.env.HELLO_ISSUER || `https://issuer.${DOMAIN}`
-const EXPECTED_AUDIENCE = process.env.HELLO_AUDIENCE || `https://mcp.${DOMAIN}`
+const EXPECTED_AUDIENCE = process.env.HELLO_AUDIENCE || `https://admin.${DOMAIN}`
 const REQUIRED_SCOPE = 'quickstart'
 
 /**
