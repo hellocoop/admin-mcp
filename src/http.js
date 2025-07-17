@@ -9,6 +9,83 @@ import { setupLogging, logOptions } from './log.js';
 import { jwtValidationPlugin } from './jwt-validation.js';
 import packageJson from './package.js';
 
+/**
+ * Validates authentication for MCP requests
+ * @param {Object} request - Fastify request object
+ * @param {Object} reply - Fastify reply object
+ * @returns {Object|null} - Returns null if authentication is valid, or sends error response and returns truthy value if invalid
+ */
+async function validateAuthentication(request, reply) {
+  const authHeader = request.headers.authorization;
+  
+  if (!authHeader) {
+    return reply.code(401)
+      .header('WWW-Authenticate', 'Bearer')
+      .send({
+        jsonrpc: '2.0',
+        error: {
+          code: -32001,
+          message: 'Authentication required',
+          data: {
+            error: 'invalid_request',
+            error_description: 'Authorization header required'
+          }
+        },
+        id: request.body?.id || null
+      });
+  }
+
+  const bearerMatch = authHeader.match(/^bearer\s+(.+)$/i);
+  if (!bearerMatch) {
+    return reply.code(401)
+      .header('WWW-Authenticate', 'Bearer')
+      .send({
+        jsonrpc: '2.0',
+        error: {
+          code: -32001,
+          message: 'Authentication required',
+          data: {
+            error: 'invalid_request',
+            error_description: 'Bearer token required'
+          }
+        },
+        id: request.body?.id || null
+      });
+  }
+
+  const token = bearerMatch[1].trim();
+  
+  // Validate JWT token
+  const { validateJWT } = await import('./jwt-validation.js');
+  const validationResult = validateJWT(token);
+  
+  if (!validationResult.valid) {
+    const statusCode = validationResult.error === 'insufficient_scope' ? 403 : 401;
+    const wwwAuthenticateHeader = `Bearer realm="Hello MCP Server", error="${validationResult.error}", error_description="${validationResult.error_description}"`;
+    
+    return reply.code(statusCode)
+      .header('WWW-Authenticate', wwwAuthenticateHeader)
+      .send({
+        jsonrpc: '2.0',
+        error: {
+          code: validationResult.error === 'insufficient_scope' ? -32003 : -32001,
+          message: validationResult.error === 'insufficient_scope' ? 'Insufficient scope' : 'Authentication required',
+          data: {
+            error: validationResult.error,
+            error_description: validationResult.error_description
+          }
+        },
+        id: request.body?.id || null
+      });
+  }
+
+  // Return the validated token and payload for use by the caller
+  return {
+    token: token,
+    payload: validationResult.payload
+  };
+}
+
 class MCPHttpServer {
   constructor(options = {}) {
     this.port = options.port || process.env.PORT || 3000;
@@ -121,20 +198,34 @@ class MCPHttpServer {
           });
         }
 
-        // JWT validation plugin has already validated the token
-        // Extract token from validated payload for MCP server
-        const authHeader = request.headers.authorization;
-        if (authHeader) {
-          const bearerMatch = authHeader.match(/^bearer\s+(.+)$/i);
-          if (bearerMatch) {
-            const token = bearerMatch[1].trim();
-            this.mcpServer.setAccessToken(token);
+        // Check authentication for tools/call requests
+        if (method === 'tools/call') {
+          const authResult = await validateAuthentication(request, reply);
+          if (reply.sent) {
+            // Authentication failed and response was already sent
+            return;
           }
-        }
+          
+          // Set validated token and payload for MCP server
+          this.mcpServer.setAccessToken(authResult.token);
+          if (authResult.payload) {
+            this.mcpServer.setJWTPayload(authResult.payload);
+          }
+        } else {
+          // For non-tools/call requests, still try to extract token if present
+          const authHeader = request.headers.authorization;
+          if (authHeader) {
+            const bearerMatch = authHeader.match(/^bearer\s+(.+)$/i);
+            if (bearerMatch) {
+              const token = bearerMatch[1].trim();
+              this.mcpServer.setAccessToken(token);
+            }
+          }
 
-        // Pass validated JWT payload to MCP server for enhanced logging
-        if (request.jwtPayload) {
-          this.mcpServer.setJWTPayload(request.jwtPayload);
+          // Pass validated JWT payload to MCP server for enhanced logging
+          if (request.jwtPayload) {
+            this.mcpServer.setJWTPayload(request.jwtPayload);
+          }
         }
 
         const mcpRequest = request.body;
@@ -149,6 +240,30 @@ class MCPHttpServer {
             stack: error.stack
           }
         }, 'MCP request error');
+        
+        // Check if this is an authentication error from the Admin API
+        if (error.httpStatus && error.httpHeaders) {
+          const statusCode = error.httpStatus;
+          const headers = error.httpHeaders;
+          
+          // Set WWW-Authenticate header if present
+          if (headers['WWW-Authenticate']) {
+            reply.header('WWW-Authenticate', headers['WWW-Authenticate']);
+          }
+          
+          return reply.code(statusCode).send({
+            jsonrpc: '2.0',
+            error: {
+              code: statusCode === 403 ? -32003 : -32001,
+              message: statusCode === 403 ? 'Insufficient scope' : 'Authentication required',
+              data: error.errorData || {
+                error: 'authentication_failed',
+                error_description: 'Authentication failed'
+              }
+            },
+            id: request.body?.id || null
+          });
+        }
         
         // Determine appropriate error code based on error type
         let errorCode = -32603; // Internal error (default)
@@ -237,7 +352,7 @@ class MCPHttpServer {
 // Start server if this file is run directly
 if (import.meta.url === `file://${process.argv[1]}`) {
   // Create server instance
-const server = new MCPHttpServer();
+  const server = new MCPHttpServer();
   
   // Graceful shutdown
   process.on('SIGINT', async () => {
@@ -255,4 +370,4 @@ const server = new MCPHttpServer();
   server.start().catch(console.error);
 }
 
-export { MCPHttpServer }; 
+export { MCPHttpServer };

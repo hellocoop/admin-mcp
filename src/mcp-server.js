@@ -375,6 +375,20 @@ export class HelloMCPServer {
   // Wrapper for callAdminAPI that returns MCP-formatted contents
   async callAdminAPIForMCP(method, path, data, options = {}) {
     const result = await this.callAdminAPI(method, path, data, options);
+    
+    // Check if the result contains HTTP status information (authentication errors)
+    if (result && typeof result === 'object' && result._httpStatus) {
+      // This is an authentication error from the Admin API
+      const error = new Error('Authentication error');
+      error.httpStatus = result._httpStatus;
+      error.httpHeaders = result._httpHeaders || {};
+      error.errorData = {
+        error: result.error || 'authentication_failed',
+        error_description: result.error_description || 'Authentication failed'
+      };
+      throw error;
+    }
+    
     return {
       contents: [{
         type: 'text',
