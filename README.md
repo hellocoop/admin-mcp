@@ -1,6 +1,8 @@
-# @hellocoop/mcp
+# @hellocoop/mcp (BETA)
 
 Model Context Protocol (MCP) server for creating and managing [Hellō](https://hello.dev) applications.
+
+> **🚧 BETA Status**: This MCP server is currently in beta. We're actively seeking feedback and welcome contributions! Please report issues, suggest improvements, or submit pull requests to help us improve the developer experience.
 
 ## Quick Install
 
@@ -15,7 +17,11 @@ Copy one of these configurations into your MCP client settings:
 {
   "hello-admin-stdio": {
     "command": "npx",
-    "args": ["@hellocoop/mcp"]
+    "args": ["-y", "@hellocoop/mcp@latest"],
+    "type": "stdio",
+    "env": {
+      "HELLO_DOMAIN": "hello-beta.net"
+    }
   }
 }
 ```
@@ -24,7 +30,7 @@ Copy one of these configurations into your MCP client settings:
 ```json
 {
   "hello-admin-http": {
-    "url": "https://mcp.hello.coop/",
+    "url": "https://mcp.hello-beta.net/",
     "type": "http"
   }
 }
@@ -73,7 +79,15 @@ This MCP server lets you create and manage your Hellō applications directly fro
 - `HELLO_DOMAIN`: Override the default domain (defaults to `hello.coop`)
 - `HELLO_ADMIN`: Override the admin server URL (defaults to `https://admin.hello.coop`)
 
-## Development
+## Contributing & Development
+
+**We want your feedback!** This MCP server is in beta and we're actively improving it based on real-world usage.
+
+### How to Contribute
+
+- **🐛 Report Issues**: [GitHub Issues](https://github.com/hellocoop/packages-js/issues) - Found a bug or have a feature request?
+- **🔧 Submit Pull Requests**: [GitHub PRs](https://github.com/hellocoop/packages-js/pulls) - Help us improve the server
+- **💬 Join the Discussion**: [Discord](https://discord.gg/hellocoop) - Share feedback and get help
 
 ### Local Development
 
@@ -82,7 +96,7 @@ For local development and testing:
 ```sh
 # Clone the repository
 git clone https://github.com/hellocoop/packages-js
-cd packages-js/mcp
+cd packages-js/MCP
 
 # Install dependencies
 npm install
