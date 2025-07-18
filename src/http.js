@@ -57,12 +57,12 @@ async function validateAuthentication(request, reply) {
   const token = bearerMatch[1].trim();
   
   // Validate JWT token
-  const { validateJWT } = await import('./jwt-validation.js');
+  const { validateJWT, createWWWAuthenticateHeader } = await import('./jwt-validation.js');
   const validationResult = validateJWT(token);
   
   if (!validationResult.valid) {
     const statusCode = validationResult.error === 'insufficient_scope' ? 403 : 401;
-    const wwwAuthenticateHeader = `Bearer realm="Hello MCP Server", error="${validationResult.error}", error_description="${validationResult.error_description}"`;
+    const wwwAuthenticateHeader = createWWWAuthenticateHeader(validationResult);
     
     return reply.code(statusCode)
       .header('WWW-Authenticate', wwwAuthenticateHeader)
