@@ -10,7 +10,7 @@ const DOMAIN = HELLO_DOMAIN;
 // Expected values for JWT validation
 const EXPECTED_ISSUER = HELLO_ISSUER;
 const EXPECTED_AUDIENCE = HELLO_AUDIENCE;
-const REQUIRED_SCOPE = 'quickstart'
+const REQUIRED_SCOPE = 'mcp'
 
 /**
  * Validates a JWT token without signature verification
