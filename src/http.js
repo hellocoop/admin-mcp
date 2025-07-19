@@ -94,7 +94,7 @@ class MCPHttpServer {
     
     this.fastify = Fastify(logOptions);
     this.mcpServer = new HelloMCPServer();
-    this.mcpServer.setupHandlers(); // Initialize MCP handlers
+    // MCP handlers are now automatically set up in the constructor
   }
   
   async init() {
