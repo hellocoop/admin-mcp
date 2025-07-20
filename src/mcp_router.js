@@ -15,13 +15,15 @@ import { AdminAPIClient } from './api_client.js';
 import { getToolDefinitions, handleToolCall } from './mcp_tools.js';
 import { getResourceDefinitions, handleResourceRead } from './mcp_resources.js';
 import { getPromptDefinitions, handlePromptCall } from './mcp_prompts.js';
+import { trackToolCall, trackResourceRead, trackProtocolHandshake } from './analytics.js';
 import packageJson from './package.js';
 
 export class MCPRouter {
-  constructor() {
+  constructor(transport = 'unknown') {
     // Initialize core components
     this.authManager = new AuthManager();
     this.apiClient = new AdminAPIClient(this.authManager);
+    this.transport = transport; // Store transport type
     
     // Initialize MCP server
     this.mcpServer = new Server(
@@ -41,6 +43,14 @@ export class MCPRouter {
     
     // Setup request handlers
     this.setupHandlers();
+  }
+
+  /**
+   * Get the transport type for this router instance
+   * @returns {string} - Transport type (stdio, http, or unknown)
+   */
+  getTransportType() {
+    return this.transport;
   }
 
   /**
@@ -64,15 +74,52 @@ export class MCPRouter {
     // Read resource handler
     this.mcpServer.setRequestHandler(ReadResourceRequestSchema, async (request) => {
       const { uri } = request.params;
-      return await handleResourceRead(uri);
+      
+      try {
+        const result = await handleResourceRead(uri);
+        
+        // Track successful resource read
+        await trackResourceRead(uri, result.contents?.[0]?.mimeType || 'unknown', {
+          transport: this.getTransportType(),
+          headers: request.headers || {},
+          requestId: request.id || 'unknown'
+        });
+        
+        return result;
+      } catch (error) {
+        // Track failed resource read (optional - could be noisy)
+        // await trackError('resource_error', null, error.message, { transport: 'mcp' });
+        throw error;
+      }
     });
 
     // Tool call handler
     this.mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
+      const startTime = performance.now();
+      const { name, arguments: args } = request.params;
+      
       try {
-        const { name, arguments: args } = request.params;
-        return await handleToolCall(name, args, this.apiClient, this.authManager);
+        const result = await handleToolCall(name, args, this.apiClient, this.authManager);
+        
+        // Track successful tool call
+        const responseTime = Math.round(performance.now() - startTime);
+        await trackToolCall(name, true, responseTime, { 
+          transport: this.getTransportType(),
+          headers: request.headers || {},
+          requestId: request.id || 'unknown'
+        });
+        
+        return result;
       } catch (error) {
+        // Track failed tool call
+        const responseTime = Math.round(performance.now() - startTime);
+        await trackToolCall(name, false, responseTime, { 
+          transport: this.getTransportType(),
+          headers: request.headers || {},
+          requestId: request.id || 'unknown',
+          error: error.message
+        });
+
         // Enhanced error handling with context
         const errorMessage = error.message || 'Unknown error occurred';
         const errorData = {

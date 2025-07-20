@@ -1,7 +1,7 @@
 // MCP Tools for Hello Admin API
 // Contains all tool definitions, schemas, and handlers
 
-import { generateLegalDocs } from './content_generators.js';
+import { generateLegalDocs } from './legal_generator.js';
 import { validateMimeType, detectMimeType, extractBase64FromDataUrl } from './utils.js';
 
 /**
