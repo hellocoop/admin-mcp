@@ -79,11 +79,13 @@ export class MCPRouter {
         const result = await handleResourceRead(uri);
         
         // Track successful resource read
-        await trackResourceRead(uri, result.contents?.[0]?.mimeType || 'unknown', {
+        const context = {
           transport: this.getTransportType(),
           headers: request.headers || {},
-          requestId: request.id || 'unknown'
-        });
+          requestId: request.id || 'unknown',
+          serverHost: request._serverContext?.serverHost || ''
+        };
+        await trackResourceRead(uri, result.contents?.[0]?.mimeType || 'unknown', context);
         
         return result;
       } catch (error) {
@@ -103,22 +105,26 @@ export class MCPRouter {
         
         // Track successful tool call
         const responseTime = Math.round(performance.now() - startTime);
-        await trackToolCall(name, true, responseTime, { 
+        const context = {
           transport: this.getTransportType(),
           headers: request.headers || {},
-          requestId: request.id || 'unknown'
-        });
+          requestId: request.id || 'unknown',
+          serverHost: request._serverContext?.serverHost || ''
+        };
+        await trackToolCall(name, true, responseTime, context);
         
         return result;
       } catch (error) {
         // Track failed tool call
         const responseTime = Math.round(performance.now() - startTime);
-        await trackToolCall(name, false, responseTime, { 
+        const context = {
           transport: this.getTransportType(),
           headers: request.headers || {},
           requestId: request.id || 'unknown',
+          serverHost: request._serverContext?.serverHost || '',
           error: error.message
-        });
+        };
+        await trackToolCall(name, false, responseTime, context);
 
         // Enhanced error handling with context
         const errorMessage = error.message || 'Unknown error occurred';

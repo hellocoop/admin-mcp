@@ -231,6 +231,11 @@ class MCPHttpServer {
         }
 
         const mcpRequest = request.body;
+        // Add server context for analytics
+        mcpRequest._serverContext = {
+          serverHost: request.headers.host || 'unknown',
+          headers: request.headers
+        };
         const response = await this.mcpServer.handleRequest(mcpRequest);
         
         return response;

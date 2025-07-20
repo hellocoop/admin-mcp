@@ -9,17 +9,22 @@ const PLAUSIBLE_DOMAIN = 'mcp.hello.coop';
 const PLAUSIBLE_API = 'https://plausible.io/api/event';
 
 // Check if analytics should be ignored (for development/testing)
+// Enable analytics on beta and staging for testing
 const ANALYTICS_IGNORE = process.env.PLAUSIBLE_IGNORE === 'true' || 
-                        process.env.MCP_ANALYTICS_IGNORE === 'true';
+                        process.env.MCP_ANALYTICS_IGNORE === 'true' ||
+                        (IS_DEVELOPMENT && !process.env.MCP_ANALYTICS_ENABLE);
 
 /**
  * Extract safe client information from headers (no sensitive data)
  * @param {Object} headers - Request headers
+ * @param {string} serverHost - Server host to determine channel
  * @returns {Object} - Client information
  */
-function extractClientInfo(headers = {}) {
+function extractClientInfo(headers = {}, serverHost = '') {
     const userAgent = headers['user-agent'] || '';
     const mcpVersion = headers['mcp-protocol-version'] || 'unknown';
+    const origin = headers['origin'] || '';
+    const referer = headers['referer'] || '';
     
     // Detect client type from User-Agent (safe to track)
     let clientType = 'unknown';
@@ -36,12 +41,23 @@ function extractClientInfo(headers = {}) {
         clientVersion = versionMatch[1];
     }
     
+    // Determine channel based on server host and other indicators
+    let channel = 'direct';
+    if (serverHost.includes('beta')) channel = 'beta';
+    else if (serverHost.includes('staging')) channel = 'staging';
+    else if (serverHost.includes('localhost') || serverHost.includes('127.0.0.1')) channel = 'local';
+    else if (origin.includes('github.com')) channel = 'github';
+    else if (origin.includes('docs.') || referer.includes('docs.')) channel = 'docs';
+    else if (origin.includes('hello.dev')) channel = 'hello-dev';
+    
     return {
         client_type: clientType,
         client_version: clientVersion,
         mcp_version: mcpVersion,
+        channel: channel,
         // Don't include full user-agent as it may contain sensitive info
-        has_user_agent: !!userAgent
+        has_user_agent: !!userAgent,
+        has_origin: !!origin
     };
 }
 
@@ -64,7 +80,8 @@ export async function trackMCPEvent(eventName, properties = {}, context = null) 
     const requestId = logContext?.rid || 'unknown';
     
     // Extract safe client info from context if available
-    const clientInfo = context?.headers ? extractClientInfo(context.headers) : {};
+    const serverHost = context?.serverHost || '';
+    const clientInfo = context?.headers ? extractClientInfo(context.headers, serverHost) : {};
     
     // Build Plausible-compatible event data
     const eventData = {
