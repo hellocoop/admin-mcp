@@ -8,9 +8,9 @@ import { MCPRouter } from './mcp_router.js';
  * Now uses modular architecture with MCPRouter
  */
 export class HelloMCPServer {
-  constructor() {
-    // Use the new modular router
-    this.router = new MCPRouter();
+  constructor(transport = 'unknown') {
+    // Use the new modular router with transport type
+    this.router = new MCPRouter(transport);
   }
 
   /**

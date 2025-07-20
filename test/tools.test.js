@@ -113,7 +113,7 @@ class MCPToolTester {
       });
 
       const resources = result.resources;
-      const expectedResourceCount = 8;
+      const expectedResourceCount = 17;
       
       if (!Array.isArray(resources)) {
         throw new Error('resources is not an array');
@@ -125,11 +125,15 @@ class MCPToolTester {
 
       // Check for required resources
       const requiredResources = [
-        'Hellō Documentation',
+        'Hellō Documentation Overview',
+        'Hellō Getting Started',
         'Hellō Quickstarts',
         'Hellō Buttons',
         'Hellō Scopes',
         'Hellō Wallet API',
+        'Hellō Admin API',
+        'Hellō MCP Server',
+        'Hellō SDKs',
         'Hellō Logo Design Guidance',
         'Supported Logo Formats',
         'Hellō Login Button Implementation Guide'

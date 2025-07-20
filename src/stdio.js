@@ -6,6 +6,7 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { HelloMCPServer } from './mcp-server.js';
 import { WALLET_BASE_URL, MCP_CLIENT_ID } from './oauth-endpoints.js';
+import { trackServerStart } from './analytics.js';
 import { pkce } from '@hellocoop/helper-server';
 import http from 'http';
 import url from 'url';
@@ -20,7 +21,7 @@ const __dirname = path.dirname(__filename);
 
 class MCPCLIServer {
   constructor() {
-    this.mcpServer = new HelloMCPServer();
+    this.mcpServer = new HelloMCPServer('stdio');
     this.accessToken = null;
     this.localServer = null;
     this.localPort = 3000; // Default port for OAuth callback
@@ -31,6 +32,9 @@ class MCPCLIServer {
   async start() {
     // Set up lazy authentication callback
     this.mcpServer.setAuthenticationCallback(() => this.ensureAuthenticated());
+
+    // Track server startup
+    await trackServerStart(this.mcpServer);
 
     // Start stdio transport
     const transport = new StdioServerTransport();
