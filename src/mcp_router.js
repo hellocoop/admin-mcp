@@ -264,13 +264,7 @@ export class MCPRouter {
           return {
             jsonrpc: '2.0',
             id,
-            result: {
-              pong: true,
-              timestamp: new Date().toISOString(),
-              server: 'hello-admin-mcp',
-              version: packageJson.version,
-              user: this.authManager.getAdminUser()
-            }
+            result: {}
           };
 
         default:
