@@ -22,12 +22,11 @@ export const WALLET_BASE_URL = `https://wallet.${HELLO_DOMAIN}`;
 export const ISSUER_BASE_URL = `https://issuer.${HELLO_DOMAIN}`;
 
 // OAuth client configuration
-export const MCP_CLIENT_ID = process.env.MCP_CLIENT_ID || 'hello_mcp_client';
+// MCP_STDIO_CLIENT_ID: Used by stdio transport for local OAuth flows
+export const MCP_STDIO_CLIENT_ID = process.env.MCP_STDIO_CLIENT_ID || 'hello_mcp_stdio_client';
+// MCP_HTTP_CLIENT_ID: Used by HTTP transport (obtained via DCR in Admin server)
+export const MCP_HTTP_CLIENT_ID = process.env.MCP_HTTP_CLIENT_ID || 'hello_mcp_http_client';
 export const HELLO_ACCESS_TOKEN = process.env.HELLO_ACCESS_TOKEN || null;
-
-// Next.js public variables (for client-side code)
-export const NEXT_PUBLIC_HELLO_CLIENT_ID = process.env.NEXT_PUBLIC_HELLO_CLIENT_ID;
-export const NEXT_PUBLIC_REDIRECT_URI = process.env.NEXT_PUBLIC_REDIRECT_URI;
 
 // Development flags
 export const IS_DEVELOPMENT = NODE_ENV === 'development';

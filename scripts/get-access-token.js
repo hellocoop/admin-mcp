@@ -3,7 +3,7 @@
 // Script to get access token via OAuth flow
 // Outputs token response as JSON for piping to other commands
 
-import { WALLET_BASE_URL, MCP_CLIENT_ID } from '../src/oauth-endpoints.js';
+import { WALLET_BASE_URL, MCP_STDIO_CLIENT_ID } from '../src/oauth-endpoints.js';
 import { pkce } from '@hellocoop/helper-server';
 import http from 'http';
 import url from 'url';
@@ -31,7 +31,7 @@ class TokenGetter {
 
       // Create authorization URL
       const authUrl = this.createAuthorizationUrl({
-        client_id: MCP_CLIENT_ID,
+        client_id: MCP_STDIO_CLIENT_ID,
         redirect_uri: `http://localhost:${this.localPort}/callback`,
         scope: ['mcp'],
         code_challenge: pkceMaterial.code_challenge,
@@ -47,7 +47,7 @@ class TokenGetter {
       const tokenResponse = await this.exchangeCodeForToken({
         code: authCode,
         code_verifier: pkceMaterial.code_verifier,
-        client_id: MCP_CLIENT_ID,
+        client_id: MCP_STDIO_CLIENT_ID,
         redirect_uri: `http://localhost:${this.localPort}/callback`
       });
 

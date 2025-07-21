@@ -3,7 +3,8 @@
 
 import {
   HELLO_DOMAIN,
-  MCP_CLIENT_ID,
+  MCP_STDIO_CLIENT_ID,
+  MCP_HTTP_CLIENT_ID,
   ADMIN_BASE_URL,
   MCP_BASE_URL,
   WALLET_BASE_URL,
@@ -12,7 +13,7 @@ import {
 
 // Re-export for backward compatibility
 export const domain = HELLO_DOMAIN;
-export { MCP_CLIENT_ID, ADMIN_BASE_URL, MCP_BASE_URL, WALLET_BASE_URL, ISSUER_BASE_URL };
+export { MCP_STDIO_CLIENT_ID, MCP_HTTP_CLIENT_ID, ADMIN_BASE_URL, MCP_BASE_URL, WALLET_BASE_URL, ISSUER_BASE_URL };
 
 // OAuth Authorization Server Metadata (RFC 8414)
 export const OAUTH_AUTH_SERVER_METADATA = {

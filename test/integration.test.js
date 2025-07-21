@@ -4,7 +4,7 @@
 // Gets OAuth token and tests all 15 tools with real API calls
 
 import { HelloMCPServer } from '../src/mcp-server.js';
-import { WALLET_BASE_URL, MCP_CLIENT_ID } from '../src/oauth-endpoints.js';
+import { WALLET_BASE_URL, MCP_STDIO_CLIENT_ID } from '../src/oauth-endpoints.js';
 import { pkce } from '@hellocoop/helper-server';
 import http from 'http';
 import url from 'url';
@@ -61,7 +61,7 @@ class MCPIntegrationTester {
 
       // Create authorization URL
       const authUrl = this.createAuthorizationUrl({
-        client_id: MCP_CLIENT_ID,
+        client_id: MCP_STDIO_CLIENT_ID,
         redirect_uri: `http://localhost:${this.localPort}/callback`,
         scope: ['mcp'],
         code_challenge: pkceMaterial.code_challenge,
@@ -77,7 +77,7 @@ class MCPIntegrationTester {
       const tokenResponse = await this.exchangeCodeForToken({
         code: authCode,
         code_verifier: pkceMaterial.code_verifier,
-        client_id: MCP_CLIENT_ID,
+        client_id: MCP_STDIO_CLIENT_ID,
         redirect_uri: `http://localhost:${this.localPort}/callback`
       });
 

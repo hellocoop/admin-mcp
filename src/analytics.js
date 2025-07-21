@@ -1,7 +1,7 @@
 // MCP Analytics - Track usage patterns with Plausible
 // Provides insights into tool usage, client distribution, and error patterns
 
-import { IS_DEVELOPMENT } from './config.js';
+import { IS_DEVELOPMENT, MCP_STDIO_CLIENT_ID, MCP_HTTP_CLIENT_ID } from './config.js';
 import { getLogContext } from './log.js';
 import packageJson from './package.js';
 
@@ -18,9 +18,10 @@ const ANALYTICS_IGNORE = process.env.PLAUSIBLE_IGNORE === 'true' ||
  * Extract safe client information from headers (no sensitive data)
  * @param {Object} headers - Request headers
  * @param {string} serverHost - Server host to determine channel
+ * @param {string} transport - Transport type ('stdio' or 'http')
  * @returns {Object} - Client information
  */
-function extractClientInfo(headers = {}, serverHost = '') {
+function extractClientInfo(headers = {}, serverHost = '', transport = 'unknown') {
     const userAgent = headers['user-agent'] || '';
     const mcpVersion = headers['mcp-protocol-version'] || 'unknown';
     const origin = headers['origin'] || '';
@@ -50,11 +51,17 @@ function extractClientInfo(headers = {}, serverHost = '') {
     else if (origin.includes('docs.') || referer.includes('docs.')) channel = 'docs';
     else if (origin.includes('hello.dev')) channel = 'hello-dev';
     
+    // Determine OAuth client ID based on transport
+    let oauthClientId = 'unknown';
+    if (transport === 'stdio') oauthClientId = MCP_STDIO_CLIENT_ID;
+    else if (transport === 'http') oauthClientId = MCP_HTTP_CLIENT_ID;
+    
     return {
         client_type: clientType,
         client_version: clientVersion,
         mcp_version: mcpVersion,
         channel: channel,
+        oauth_client_id: oauthClientId,
         // Don't include full user-agent as it may contain sensitive info
         has_user_agent: !!userAgent,
         has_origin: !!origin
@@ -81,7 +88,8 @@ export async function trackMCPEvent(eventName, properties = {}, context = null) 
     
     // Extract safe client info from context if available
     const serverHost = context?.serverHost || '';
-    const clientInfo = context?.headers ? extractClientInfo(context.headers, serverHost) : {};
+    const transport = context?.transport || 'unknown';
+    const clientInfo = context?.headers ? extractClientInfo(context.headers, serverHost, transport) : { oauth_client_id: transport === 'stdio' ? MCP_STDIO_CLIENT_ID : (transport === 'http' ? MCP_HTTP_CLIENT_ID : 'unknown') };
     
     // Build Plausible-compatible event data
     const eventData = {

@@ -55,28 +55,6 @@ const HelloButton = ({ clientId, redirectUri, onSuccess }) => {
 };
 ```
 
-### 3. Next.js Implementation
-
-```jsx
-import { useEffect } from 'react';
-import Script from 'next/script';
-
-export default function LoginPage() {
-  return (
-    <>
-      <Script src="https://cdn.hello.coop/js/hello-btn.js" />
-      <hello-btn 
-        client_id={NEXT_PUBLIC_HELLO_CLIENT_ID}
-        redirect_uri={NEXT_PUBLIC_REDIRECT_URI}
-        scope="openid name email"
-      >
-        Continue with Hellō
-      </hello-btn>
-    </>
-  );
-}
-```
-
 ## ⚙️ Configuration Options
 
 ### Required Parameters
