@@ -1,0 +1,34 @@
+services:
+  # Mock Admin Server
+  mock-admin:
+    image: node:22-alpine
+    working_dir: /usr/src/mcp
+    volumes:
+      - type: bind
+        source: .
+        target: /usr/src/mcp
+    command: ['node', 'test/mock-admin-server.js']
+    environment:
+      - MOCK_ADMIN_PORT=3333
+      - MOCK_ADMIN_HOST=0.0.0.0
+    ports:
+      - "3333:3333"
+
+  # MCP HTTP Server  
+  mcp-server:
+    image: node:22-alpine
+    working_dir: /usr/src/mcp
+    volumes:
+      - type: bind
+        source: .
+        target: /usr/src/mcp
+    command: ['node', 'src/http.js']
+    environment:
+      - PORT=3000
+      - HOST=0.0.0.0
+      - HELLO_ADMIN=http://mock-admin:3333
+      - NODE_ENV=test
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mock-admin 

@@ -125,20 +125,41 @@ export class AdminAPIClient {
         }
       }
       
-      // For authentication errors, return an object with HTTP status and headers
-      if (response.status === 401) {
-        const wwwAuthHeader = response.headers.get('WWW-Authenticate');
-        apiLogError({
-          event: 'admin_api_auth_error',
-          startTime,
-          message: `Admin API authentication error: ${response.status}`,
-          extra: { method, path, status: response.status, wwwAuthHeader }
-        });
-        return {
-          _httpStatus: response.status,
-          _httpHeaders: wwwAuthHeader ? { 'WWW-Authenticate': wwwAuthHeader } : {},
-          error: responseData.error || 'invalid_token'
-        };
+      // Handle HTTP error responses
+      if (!response.ok) {
+        if (response.status === 401) {
+          // Authentication errors - return special object for handling
+          const wwwAuthHeader = response.headers.get('WWW-Authenticate');
+          apiLogError({
+            event: 'admin_api_auth_error',
+            startTime,
+            message: `Admin API authentication error: ${response.status}`,
+            extra: { method, path, status: response.status, wwwAuthHeader }
+          });
+          return {
+            _httpStatus: response.status,
+            _httpHeaders: wwwAuthHeader ? { 'WWW-Authenticate': wwwAuthHeader } : {},
+            error: responseData.error || 'invalid_token'
+          };
+        } else if (response.status === 404) {
+          // Not found errors - throw as regular errors
+          apiLogError({
+            event: 'admin_api_not_found',
+            startTime,
+            message: `Admin API not found: ${response.status}`,
+            extra: { method, path, status: response.status }
+          });
+          throw new Error(`Resource not found: ${path}`);
+        } else {
+          // Other HTTP errors
+          apiLogError({
+            event: 'admin_api_error',
+            startTime,
+            message: `Admin API error: ${response.status}`,
+            extra: { method, path, status: response.status }
+          });
+          throw new Error(`API request failed with status ${response.status}: ${responseData.message || responseData.error || 'Unknown error'}`);
+        }
       }
       
       // Log successful response

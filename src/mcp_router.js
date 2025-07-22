@@ -126,21 +126,25 @@ export class MCPRouter {
         };
         await trackToolCall(name, false, responseTime, context);
 
-        // Enhanced error handling with context
-        const errorMessage = error.message || 'Unknown error occurred';
-        const errorData = {
-          tool: request.params.name,
-          arguments: request.params.arguments,
-          timestamp: new Date().toISOString()
-        };
-
-        // Check for specific error types
+        // Handle different error types appropriately for MCP clients
         if (error.httpStatus && error.httpHeaders) {
-          // This is an authentication error from the Admin API
-          throw error; // Re-throw to be handled by the transport layer
+          // Authentication errors from Admin API - re-throw to be handled by transport layer
+          throw error;
         }
-
-        throw new Error(`Tool execution failed: ${errorMessage}`);
+        
+        if (error.message && error.message.includes('Unknown tool:')) {
+          // Unknown tool - throw as-is so transport can convert to "Method not found"
+          throw error;
+        }
+        
+        if (error.message && error.message.includes('Authentication')) {
+          // Authentication errors - preserve the message
+          throw error;
+        }
+        
+        // For other errors, provide a more descriptive message
+        const errorMessage = error.message || 'Unknown error occurred';
+        throw new Error(`Tool '${name}' failed: ${errorMessage}`);
       }
     });
   }

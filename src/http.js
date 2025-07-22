@@ -279,10 +279,13 @@ class MCPHttpServer {
         if (error.message.includes('Authentication')) {
           errorCode = -32001;
           errorMessage = 'Authentication required';
-        } else if (error.message.includes('not found')) {
+        } else if (error.message.includes('Unknown tool:')) {
           errorCode = -32601;
           errorMessage = 'Method not found';
-        } else if (error.message.includes('Invalid')) {
+        } else if (error.message.includes('not found') || error.message.includes('Method not found')) {
+          errorCode = -32601;
+          errorMessage = 'Method not found';
+        } else if (error.message.includes('Invalid') || error.message.includes('failed:')) {
           errorCode = -32602;
           errorMessage = 'Invalid params';
         }
@@ -306,8 +309,6 @@ class MCPHttpServer {
     // Register both GET and POST handlers
     this.fastify.get('/', mcpGetHandler);
     this.fastify.post('/', mcpPostHandler);
-    this.fastify.get('/mcp', mcpGetHandler);
-    this.fastify.post('/mcp', mcpPostHandler);
   }
 
   async start() {

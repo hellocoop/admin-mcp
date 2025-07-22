@@ -190,8 +190,7 @@ export const createAuthErrorResponse = (validationResult, requestId = null) => {
 export const jwtValidationPlugin = async (fastify) => {
   fastify.addHook('onRequest', async (request, reply) => {
     // Skip validation for non-MCP endpoints
-    if (request.routerPath !== '/' && request.routerPath !== '/mcp' && 
-        request.url !== '/' && request.url !== '/mcp') {
+    if (request.routerPath !== '/' && request.url !== '/') {
       return
     }
 
@@ -273,7 +272,7 @@ export const jwtValidationMiddleware = (req, res, next) => {
   console.warn('jwtValidationMiddleware is deprecated, use jwtValidationPlugin for Fastify instead')
   
   // Skip validation for non-MCP endpoints
-  if (req.path !== '/' && req.path !== '/mcp') {
+  if (req.path !== '/') {
     return next()
   }
 
