@@ -18,7 +18,7 @@ const __dirname = path.dirname(__filename);
 
 class TokenGetter {
   constructor() {
-    this.localPort = 3000;
+    this.localPort = 3001;
     this.localServer = null;
   }
 

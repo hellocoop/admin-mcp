@@ -8,6 +8,7 @@ import { HelloMCPServer } from './mcp-server.js';
 import { WALLET_BASE_URL, MCP_STDIO_CLIENT_ID } from './oauth-endpoints.js';
 import { trackServerStart } from './analytics.js';
 import { pkce } from '@hellocoop/helper-server';
+import getPort from 'get-port';
 import http from 'http';
 import url from 'url';
 import open from 'open';
@@ -24,7 +25,7 @@ class MCPCLIServer {
     this.mcpServer = new HelloMCPServer('stdio');
     this.accessToken = null;
     this.localServer = null;
-    this.localPort = 3000; // Default port for OAuth callback
+    this.localPort = null; // Will be set dynamically
     this.authInProgress = false;
     this.authPromise = null;
   }
@@ -112,7 +113,10 @@ class MCPCLIServer {
   }
 
   async startCallbackServer(expectedState) {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
+      // Get any available port
+      this.localPort = await getPort();
+      
       const server = http.createServer((req, res) => {
         const parsedUrl = url.parse(req.url, true);
         
@@ -141,7 +145,7 @@ class MCPCLIServer {
           }
 
           res.writeHead(200, { 'Content-Type': 'text/html' });
-          const successHtml = fs.readFileSync(path.join(__dirname, 'auth-success.html'), 'utf8');
+          const successHtml = fs.readFileSync(path.join(__dirname, 'html', 'auth-success.html'), 'utf8');
           res.end(successHtml);
           
           resolve(code);
@@ -163,7 +167,7 @@ class MCPCLIServer {
         } else {
           // Serve the login page for all other requests
           res.writeHead(200, { 'Content-Type': 'text/html' });
-          const loginHtml = fs.readFileSync(path.join(__dirname, 'auth-login.html'), 'utf8');
+          const loginHtml = fs.readFileSync(path.join(__dirname, 'html', 'auth-login.html'), 'utf8');
           res.end(loginHtml);
         }
       });
