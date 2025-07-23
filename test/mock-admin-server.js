@@ -4,6 +4,7 @@
 // Implements all Admin API endpoints used by MCP tools
 
 import fastify from 'fastify';
+import multipart from '@fastify/multipart';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 
@@ -34,7 +35,7 @@ const mockData = {
       id: 'pub456',
       name: "Another Team",
       owner: 'user123',
-      applications: []
+      applications: ['app789']
     }
   },
   applications: {
@@ -79,6 +80,28 @@ const mockData = {
           redirect_uris: ['https://myapp.com/callback']
         }
       }
+    },
+    'app789': {
+      id: 'app789',
+      name: 'Cross-Team App',
+      publisher_id: 'pub456',
+      tos_uri: null,
+      pp_uri: null,
+      image_uri: null,
+      dark_image_uri: null,
+      device_code: false,
+      web: {
+        dev: {
+          localhost: true,
+          "127.0.0.1": true,
+          wildcard_domain: false,
+          redirect_uris: ['http://localhost:4000/callback']
+        },
+        prod: {
+          redirect_uris: []
+        }
+      },
+      createdBy: 'mcp'
     }
   }
 };
@@ -92,6 +115,9 @@ const app = fastify({
     }
   }
 });
+
+// Register multipart plugin for file uploads
+await app.register(multipart);
 
 /**
  * Generate a mock JWT token
@@ -279,14 +305,66 @@ app.get('/api/v1/profile', async (request, reply) => {
     return reply.code(404).send({ error: 'User not found' });
   }
   
-  const publishers = user.publishers.map(pubId => mockData.publishers[pubId]).filter(Boolean);
+  // Get the first publisher as current publisher (matching real API behavior)
+  const currentPublisherId = user.publishers[0];
+  const currentPublisher = mockData.publishers[currentPublisherId];
+  
+  // Get all applications for current publisher
+  const currentPublisherApplications = currentPublisher?.applications?.map(appId => mockData.applications[appId]).filter(Boolean) || [];
+  
+  // Publishers list (basic info only, no applications)
+  const publishers = user.publishers.map(pubId => {
+    const publisher = mockData.publishers[pubId];
+    if (!publisher) return null;
+    
+    return {
+      type: "publisher",
+      id: publisher.id,
+      name: publisher.name,
+      role: "admin",
+      createdAt: "2024-07-03T16:51:30.676Z"
+    };
+  }).filter(Boolean);
+  
   return {
-    user: {
-      sub: user.sub,
+    profile: {
+      id: user.sub,
+      type: "user", 
       name: user.name,
-      email: user.email
+      email: user.email,
+      picture: "https://pictures.hello.coop/r/test-picture.png",
+      createdAt: "2024-07-01T23:28:18.197Z",
+      lastUpdated: "2025-06-30T21:37:00.963Z"
     },
-    publishers
+    isNewAdmin: false,
+    publishers,
+    currentPublisher: currentPublisher ? {
+      profile: {
+        type: "publisher",
+        id: currentPublisher.id,
+        name: currentPublisher.name,
+        createdAt: "2024-07-03T16:51:30.676Z"
+      },
+      applications: currentPublisherApplications.map(app => ({
+        ...app,
+        type: "application",
+        publisher: currentPublisher.id,
+        createdAt: "2024-07-03T16:51:35.286Z",
+        createdBy: "mcp"
+      })),
+      members: {
+        admins: [{
+          id: user.sub,
+          type: "user",
+          name: user.name,
+          email: user.email,
+          picture: "https://pictures.hello.coop/r/test-picture.png",
+          createdAt: "2024-07-01T23:28:18.197Z"
+        }],
+        testers: []
+      }
+    } : null,
+    notifications: []
   };
 });
 
@@ -305,6 +383,23 @@ app.get('/api/v1/profile/:publisherId', async (request, reply) => {
       ...publisher,
       applications
     }
+  };
+});
+
+// Direct application lookup endpoint
+app.get('/api/v1/applications/:applicationId', async (request, reply) => {
+  const { applicationId } = request.params;
+  const application = mockData.applications[applicationId];
+  
+  if (!application) {
+    return reply.code(404).send({ error: 'Application not found' });
+  }
+  
+  return {
+    ...application,
+    type: "application",
+    createdAt: "2024-07-03T16:51:35.286Z",
+    createdBy: "mcp"
   };
 });
 

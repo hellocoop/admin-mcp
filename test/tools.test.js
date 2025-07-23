@@ -49,7 +49,7 @@ class MCPToolTester {
       });
 
       const tools = result.tools;
-      const expectedToolCount = 10;
+      const expectedToolCount = 1; // Single consolidated tool: hello_manage_app
       
       if (!Array.isArray(tools)) {
         throw new Error('tools is not an array');
@@ -59,18 +59,9 @@ class MCPToolTester {
         throw new Error(`Expected ${expectedToolCount} tools, got ${tools.length}`);
       }
 
-      // Check for required tools
-            const requiredTools = [
-        'hello_get_profile',
-        'hello_create_publisher',
-        'hello_update_publisher',
-        'hello_read_publisher',
-        'hello_read_application',
-        'hello_create_application',
-        'hello_update_application',
-        'hello_update_logo',
-        'hello_create_secret',
-        'hello_generate_legal_docs'
+      // Check for required tools in consolidated toolset  
+      const requiredTools = [
+        'hello_manage_app'
       ];
 
       const toolNames = tools.map(t => t.name);
@@ -113,7 +104,7 @@ class MCPToolTester {
       });
 
       const resources = result.resources;
-      const expectedResourceCount = 17;
+      const expectedResourceCount = 17; // Removed hello://profile resource
       
       if (!Array.isArray(resources)) {
         throw new Error('resources is not an array');

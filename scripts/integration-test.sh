@@ -149,7 +149,7 @@ test_mcp_list_resources() {
 }
 
 test_auth_no_token() {
-    local request='{"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "hello_get_profile", "arguments": {}}}'
+    local request='{"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "hello_manage_app", "arguments": {"action": "create", "name": "Test App"}}}'
     local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request")
     
     # Should get authentication error
@@ -157,7 +157,7 @@ test_auth_no_token() {
 }
 
 test_auth_expired_token() {
-    local request='{"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "hello_get_profile", "arguments": {}}}'
+    local request='{"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "hello_manage_app", "arguments": {"action": "create", "name": "Test App"}}}'
     local auth_header="Authorization: Bearer $EXPIRED_TOKEN"
     local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request" "$auth_header")
     
@@ -166,7 +166,7 @@ test_auth_expired_token() {
 }
 
 test_auth_valid_token() {
-    local request='{"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "hello_get_profile", "arguments": {}}}'
+    local request='{"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "hello_manage_app", "arguments": {"action": "create", "name": "Test App"}}}'
     local auth_header="Authorization: Bearer $VALID_TOKEN"
     local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request" "$auth_header")
     
@@ -174,26 +174,138 @@ test_auth_valid_token() {
     echo "$response" | grep -q '"result"'
 }
 
-test_tool_get_profile() {
-    local request='{"jsonrpc": "2.0", "id": 6, "method": "tools/call", "params": {"name": "hello_get_profile", "arguments": {}}}'
+test_tool_with_profile() {
+    local request='{"jsonrpc": "2.0", "id": 6, "method": "tools/call", "params": {"name": "hello_manage_app", "arguments": {"action": "create", "name": "Profile Test App"}}}'
     local auth_header="Authorization: Bearer $VALID_TOKEN"
     local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request" "$auth_header")
     
-    # Should get successful result with profile data
-    echo "$response" | grep -q '"result"' && echo "$response" | grep -q '"content"'
+    # Should get successful result with profile data included
+    echo "$response" | grep -q '"result"' && echo "$response" | grep -q '"profile"' && echo "$response" | grep -q '"application"'
 }
 
-test_tool_create_publisher() {
-    local request='{"jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": {"name": "hello_create_publisher", "arguments": {"name": "Test Publisher"}}}'
+# Test create action with auto-generated name
+test_create_app_auto_name() {
+    local request='{"jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": {"name": "hello_manage_app", "arguments": {"action": "create"}}}'
+    local auth_header="Authorization: Bearer $VALID_TOKEN"
+    local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request" "$auth_header")
+    
+    # Should get successful result with auto-generated name
+    echo "$response" | grep -q '"result"' && echo "$response" | grep -q '"application"' && echo "$response" | grep -q "'s App"
+}
+
+# Test create action with full parameters
+test_create_app_full() {
+    local request='{"jsonrpc": "2.0", "id": 8, "method": "tools/call", "params": {"name": "hello_manage_app", "arguments": {"action": "create", "name": "Full Test App", "tos_uri": "https://example.com/tos", "pp_uri": "https://example.com/privacy", "dev_localhost": true, "dev_127_0_0_1": true, "dev_wildcard": false, "dev_redirect_uris": ["http://localhost:3000/callback"], "prod_redirect_uris": ["https://example.com/callback"], "device_code": true}}}'
+    local auth_header="Authorization: Bearer $VALID_TOKEN"
+    local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request" "$auth_header")
+    
+    # Should get successful result and store client_id for other tests
+    if echo "$response" | grep -q '"result"' && echo "$response" | grep -q '"application"'; then
+        # Extract client_id for use in other tests
+        TEST_CLIENT_ID=$(echo "$response" | jq -r '.result.application.id // .result.application.client_id // empty')
+        return 0
+    fi
+    return 1
+}
+
+# Test read action with no client_id (profile only)
+test_read_profile_only() {
+    local request='{"jsonrpc": "2.0", "id": 6, "method": "tools/call", "params": {"name": "hello_manage_app", "arguments": {"action": "read"}}}'
+    local auth_header="Authorization: Bearer $VALID_TOKEN"
+    local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request" "$auth_header")
+    
+    # Should get successful result with profile but no teams/applications initially
+    echo "$response" | grep -q '"result"' && echo "$response" | grep -q '"profile"'
+}
+
+# Test read action with client_id (after app creation)
+test_read_app() {
+    if [ -z "$TEST_CLIENT_ID" ]; then
+        echo "Skipping read test - no client_id available"
+        return 0
+    fi
+    
+    local request="{\"jsonrpc\": \"2.0\", \"id\": 9, \"method\": \"tools/call\", \"params\": {\"name\": \"hello_manage_app\", \"arguments\": {\"action\": \"read\", \"client_id\": \"$TEST_CLIENT_ID\"}}}"
+    local auth_header="Authorization: Bearer $VALID_TOKEN"
+    local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request" "$auth_header")
+    
+    # Should get successful result with application details
+    echo "$response" | grep -q '"result"' && echo "$response" | grep -q '"application"' && echo "$response" | grep -q "$TEST_CLIENT_ID"
+}
+
+# Test update action
+test_update_app() {
+    if [ -z "$TEST_CLIENT_ID" ]; then
+        echo "Skipping update test - no client_id available"
+        return 0
+    fi
+    
+    local request="{\"jsonrpc\": \"2.0\", \"id\": 10, \"method\": \"tools/call\", \"params\": {\"name\": \"hello_manage_app\", \"arguments\": {\"action\": \"update\", \"client_id\": \"$TEST_CLIENT_ID\", \"name\": \"Updated Test App\", \"tos_uri\": \"https://example.com/updated-tos\"}}}"
     local auth_header="Authorization: Bearer $VALID_TOKEN"
     local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request" "$auth_header")
     
     # Should get successful result
-    echo "$response" | grep -q '"result"'
+    echo "$response" | grep -q '"result"' && echo "$response" | grep -q '"application"' && echo "$response" | grep -q "Updated Test App"
+}
+
+# Test create_secret action
+test_create_secret() {
+    if [ -z "$TEST_CLIENT_ID" ]; then
+        echo "Skipping create_secret test - no client_id available"
+        return 0
+    fi
+    
+    local request="{\"jsonrpc\": \"2.0\", \"id\": 11, \"method\": \"tools/call\", \"params\": {\"name\": \"hello_manage_app\", \"arguments\": {\"action\": \"create_secret\", \"client_id\": \"$TEST_CLIENT_ID\"}}}"
+    local auth_header="Authorization: Bearer $VALID_TOKEN"
+    local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request" "$auth_header")
+    
+    # Should get successful result with client_secret
+    echo "$response" | grep -q '"result"' && echo "$response" | grep -q '"client_secret"'
+}
+
+# Test upload_logo_url action
+test_upload_logo_url() {
+    if [ -z "$TEST_CLIENT_ID" ]; then
+        echo "Skipping upload_logo_url test - no client_id available"
+        return 0
+    fi
+    
+    local request="{\"jsonrpc\": \"2.0\", \"id\": 12, \"method\": \"tools/call\", \"params\": {\"name\": \"hello_manage_app\", \"arguments\": {\"action\": \"upload_logo_url\", \"client_id\": \"$TEST_CLIENT_ID\", \"logo_url\": \"https://www.hello.dev/images/hello-logo.svg\", \"logo_content_type\": \"image/svg+xml\"}}}"
+    local auth_header="Authorization: Bearer $VALID_TOKEN"
+    local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request" "$auth_header")
+    
+    # Should get successful result with upload details
+    echo "$response" | grep -q '"result"' && echo "$response" | grep -q '"upload_result"'
+}
+
+# Test upload_logo_file action
+test_upload_logo_file() {
+    if [ -z "$TEST_CLIENT_ID" ]; then
+        echo "Skipping upload_logo_file test - no client_id available"
+        return 0
+    fi
+    
+    # Small 1x1 transparent PNG in base64
+    local test_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+    local request="{\"jsonrpc\": \"2.0\", \"id\": 13, \"method\": \"tools/call\", \"params\": {\"name\": \"hello_manage_app\", \"arguments\": {\"action\": \"upload_logo_file\", \"client_id\": \"$TEST_CLIENT_ID\", \"logo_file\": \"$test_image\", \"logo_content_type\": \"image/png\"}}}"
+    local auth_header="Authorization: Bearer $VALID_TOKEN"
+    local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request" "$auth_header")
+    
+    # Should get successful result with upload details
+    echo "$response" | grep -q '"result"' && echo "$response" | grep -q '"upload_result"'
+}
+
+test_tool_upload_logo() {
+    local request='{"jsonrpc": "2.0", "id": 14, "method": "tools/call", "params": {"name": "hello_manage_app", "arguments": {"action": "upload_logo_url", "client_id": "invalid-app-id", "logo_url": "https://example.com/logo.png", "logo_content_type": "image/png"}}}'
+    local auth_header="Authorization: Bearer $VALID_TOKEN"
+    local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request" "$auth_header")
+    
+    # Should get error for invalid app ID
+    echo "$response" | grep -q '"error"'
 }
 
 test_invalid_tool() {
-    local request='{"jsonrpc": "2.0", "id": 8, "method": "tools/call", "params": {"name": "nonexistent_tool", "arguments": {}}}'
+    local request='{"jsonrpc": "2.0", "id": 15, "method": "tools/call", "params": {"name": "nonexistent_tool", "arguments": {}}}'
     local auth_header="Authorization: Bearer $VALID_TOKEN"
     local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request" "$auth_header")
     
@@ -201,12 +313,12 @@ test_invalid_tool() {
     echo "$response" | grep -q '"error"' && (echo "$response" | grep -q 'Method not found' || echo "$response" | grep -q 'Unknown tool:')
 }
 
-test_invalid_publisher_id() {
-    local request='{"jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": {"name": "hello_get_publisher", "arguments": {"publisher_id": "invalid-uuid"}}}'
+test_invalid_app_id() {
+    local request='{"jsonrpc": "2.0", "id": 16, "method": "tools/call", "params": {"name": "hello_manage_app", "arguments": {"action": "read", "client_id": "invalid-uuid"}}}'
     local auth_header="Authorization: Bearer $VALID_TOKEN"
     local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request" "$auth_header")
     
-    # Should get error about invalid publisher ID
+    # Should get error about invalid app ID
     echo "$response" | grep -q '"error"'
 }
 
@@ -267,10 +379,18 @@ main() {
     run_test "Auth - Tool call without token (401)" test_auth_no_token
     run_test "Auth - Tool call with expired token (401)" test_auth_expired_token
     run_test "Auth - Tool call with valid token (success)" test_auth_valid_token
-    run_test "Tool - hello_get_profile" test_tool_get_profile
-    run_test "Tool - hello_create_publisher" test_tool_create_publisher
+    run_test "Tool - hello_manage_app read (profile only)" test_read_profile_only
+    run_test "Tool - hello_manage_app with profile data" test_tool_with_profile
+    run_test "Tool - hello_manage_app create (auto-name)" test_create_app_auto_name
+    run_test "Tool - hello_manage_app create (full)" test_create_app_full
+    run_test "Tool - hello_manage_app read (with app)" test_read_app
+    run_test "Tool - hello_manage_app update" test_update_app
+    run_test "Tool - hello_manage_app create_secret" test_create_secret
+    run_test "Tool - hello_manage_app upload_logo_url" test_upload_logo_url
+    run_test "Tool - hello_manage_app upload_logo_file" test_upload_logo_file
+    run_test "Tool - hello_manage_app upload_logo_url error handling" test_tool_upload_logo
     run_test "Error - Invalid tool name" test_invalid_tool
-    run_test "Error - Invalid publisher ID" test_invalid_publisher_id
+    run_test "Error - Invalid app ID" test_invalid_app_id
     
     # Print results and exit with appropriate code
     print_results

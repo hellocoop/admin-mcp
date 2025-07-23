@@ -123,7 +123,7 @@ export function getResourceDefinitions() {
  * @param {string} uri - Resource URI to read
  * @returns {Promise<Object>} - Resource content
  */
-export async function handleResourceRead(uri) {
+export async function handleResourceRead(uri, adminApiClient) {
   // Handle internal resources
   switch (uri) {
     case 'hello://logo-guidance': {
@@ -158,6 +158,8 @@ export async function handleResourceRead(uri) {
         }]
       };
     }
+    
+
   }
 
   // Handle external markdown resources from hello.dev

@@ -76,7 +76,7 @@ export class MCPRouter {
       const { uri } = request.params;
       
       try {
-        const result = await handleResourceRead(uri);
+        const result = await handleResourceRead(uri, this.apiClient);
         
         // Track successful resource read
         const context = {
