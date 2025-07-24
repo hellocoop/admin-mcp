@@ -36,9 +36,7 @@ const expectedTools = [
   'hello_create_publisher',
   'hello_update_publisher',
   'hello_read_publisher',
-  'hello_read_application',
-  'hello_create_application',
-  'hello_update_application'
+  'hello_manage_app'
 ];
 
 async function testCLI() {

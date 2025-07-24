@@ -295,7 +295,7 @@ test_upload_logo_file() {
     echo "$response" | grep -q '"result"' && echo "$response" | grep -q '"upload_result"'
 }
 
-test_tool_upload_logo() {
+test_upload_logo_url_error_handling() {
     local request='{"jsonrpc": "2.0", "id": 14, "method": "tools/call", "params": {"name": "hello_manage_app", "arguments": {"action": "upload_logo_url", "client_id": "invalid-app-id", "logo_url": "https://example.com/logo.png", "logo_content_type": "image/png"}}}'
     local auth_header="Authorization: Bearer $VALID_TOKEN"
     local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request" "$auth_header")
@@ -388,7 +388,7 @@ main() {
     run_test "Tool - hello_manage_app create_secret" test_create_secret
     run_test "Tool - hello_manage_app upload_logo_url" test_upload_logo_url
     run_test "Tool - hello_manage_app upload_logo_file" test_upload_logo_file
-    run_test "Tool - hello_manage_app upload_logo_url error handling" test_tool_upload_logo
+    run_test "Tool - hello_manage_app upload_logo_url error handling" test_upload_logo_url_error_handling
     run_test "Error - Invalid tool name" test_invalid_tool
     run_test "Error - Invalid app ID" test_invalid_app_id
     

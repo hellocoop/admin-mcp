@@ -12,58 +12,97 @@ Model Context Protocol (MCP) server for creating and managing [Hellō](https://h
 
 Copy one of these configurations into your MCP client settings:
 
-**Stdio Transport (Local):**
+**NPM Package (Latest):**
 ```json
 {
   "hello-admin-stdio": {
     "command": "npx",
     "args": ["-y", "@hellocoop/mcp@latest"],
-    "type": "stdio",
-    "env": {
-      "HELLO_DOMAIN": "hello-beta.net"
-    }
+    "type": "stdio"
   }
 }
 ```
 
-**streamableHTTP Transport (Remote):**
+**HTTP Transport (Remote):**
 ```json
 {
   "hello-admin-http": {
-    "url": "https://mcp.hello-beta.net/",
+    "url": "https://mcp.hello.coop/",
     "type": "http"
   }
 }
 ```
 
+📖 **[See Local Development Setup](#local-development)** for running from source 
+
 ## Usage
 
-This MCP server lets you create and manage your Hellō applications directly from your AI assistant instead of using the [Hellō Console](https://console.hello.coop).
+This MCP server provides a **single powerful tool** (`hello_manage_app`) that lets you create and manage your Hellō applications directly from your AI assistant. Unlike traditional APIs, **every operation automatically includes your complete developer context** - profile, teams, and applications - making it perfect for AI assistants.
 
 **📖 For detailed usage instructions, examples, and troubleshooting, visit: [hello.dev/docs/mcp](https://hello.dev/docs/mcp)**
 
 ## Features
 
-- **Application Management**: Create, read, and update Hellō applications
-- **Publisher Management**: Create and manage publishers (teams/organizations)
-- **OAuth Integration**: Secure authentication via browser-based OAuth flow
-- **Legal Document Generation**: Create Terms of Service and Privacy Policy templates
-- **Logo Management**: Upload and manage application logos
-- **Multiple Transports**: Both stdio and HTTP MCP transports supported
-- **Environment Flexibility**: Configurable domains and admin servers
+- **🏢 Context-Aware Operations**: Every tool call automatically includes your current developer profile, teams, and applications for seamless context
+- **📱 Unified Application Management**: Single powerful tool for all app operations (create, read, update, secrets, logos)
+- **🔐 Secure OAuth Integration**: Browser-based authentication with JWT token validation
+- **🌐 Multi-Transport Support**: Works with both stdio (local) and HTTP (remote) MCP transports
+- **📊 Built-in Analytics**: Usage tracking and performance monitoring for optimization
+- **🎨 Logo Management**: Upload logos with automatic light/dark theme support
+- **⚙️ Environment Flexibility**: Configurable domains and admin servers
 
 ## Available Tools
 
-- `hello_get_profile` - Get your developer profile and publishers
-- `hello_create_publisher` - Create a new publisher (team/organization)
-- `hello_read_publisher` - Read detailed publisher information
-- `hello_create_application` - Create a new Hellō application
-- `hello_read_application` - Read detailed application information
-- `hello_update_application` - Update application settings
-- `hello_upload_logo` - Upload application logos
-- `hello_create_secret` - Create client secrets for applications
-- `hello_generate_login_button` - Generate HTML/JavaScript login buttons
-- `hello_generate_legal_docs` - Generate Terms of Service and Privacy Policy templates
+**🎯 Core Tool:**
+- `hello_manage_app` - **The main tool for all application management**
+  - **Actions**: `create`, `read`, `update`, `create_secret`, `upload_logo_file`, `upload_logo_url`
+  - **Always includes**: Your current profile, teams, and applications in every response
+  - **Auto-context**: Automatically uses your default team if none specified
+  - **Smart defaults**: Generates app names from your profile if not provided
+
+## Key Benefits
+
+**🔄 Always In Context**: Unlike traditional APIs, every tool response includes your complete developer context:
+- Your user profile (name, email, picture)
+- All your teams/organizations with roles
+- All your applications with team associations
+- Current team and application state
+
+This means you never lose context between operations - perfect for AI assistants that need to understand your complete development environment.
+
+## Tool Actions & Response Structure
+
+### `hello_manage_app` Actions:
+
+**📝 `create`** - Create new applications
+- Auto-generates team if none exists
+- Creates smart default names from your profile
+- Returns: `{ profile, application, action_result }`
+
+**👁️ `read`** - Read application details  
+- Without `client_id`: Returns your complete profile context
+- With `client_id`: Returns profile + specific application
+- Returns: `{ profile, application?, action_result }`
+
+**✏️ `update`** - Update application settings
+- Modify any application property
+- Returns: `{ profile, application, action_result }`
+
+**🔑 `create_secret`** - Generate client secrets
+- Creates secure OAuth client secrets
+- Returns: `{ profile, application, client_secret, action_result }`
+
+**🎨 `upload_logo_file`** - Upload logo from base64 data
+- Supports light/dark themes
+- Auto-updates application with logo URL
+- Returns: `{ profile, application, upload_result, action_result }`
+
+**🔗 `upload_logo_url`** - Upload logo from URL
+- Fetches and uploads from provided URL
+- Supports light/dark themes  
+- Returns: `{ profile, application, upload_result, action_result }`
+
+**Every response includes your complete profile context**, making it perfect for AI assistants that need to maintain awareness of your development environment.
 
 ## Available Resources
 
@@ -95,36 +134,24 @@ For local development and testing:
 
 ```sh
 # Clone the repository
-git clone https://github.com/hellocoop/packages-js
-cd packages-js/MCP
+git clone https://github.com/hellocoop/MCP
+cd MCP
 
 # Install dependencies
 npm install
-
-# Run in stdio mode
-npm start
-
-# Run HTTP server mode
-npm run start:http
 ```
 
-### Getting Access Tokens for Testing
+The configure your AI client to run the local version 
 
-The `get-token` script performs OAuth flow and outputs token data as JSON:
-
-```sh
-# Get complete token response
-npm run get-token
-
-# Extract just the access token
-npm run get-token | jq -r '.access_token'
-
-# Use in shell commands
-TOKEN=$(npm run get-token 2>/dev/null | jq -r '.access_token')
-curl -H "Authorization: Bearer $TOKEN" https://admin.hello.coop/api/v1/profile
-
-# Save to file for reuse
-npm run get-token > token.json
+**Local Development (Node.js):**
+```json
+{
+  "hello-admin-local": {
+    "command": "node",
+    "args": ["path/to/HelloCoop/MCP/src/stdio.js"],
+    "type": "stdio"
+  }
+}
 ```
 
 ### Testing
@@ -135,26 +162,4 @@ Run the comprehensive test suite:
 # Run all automated tests
 npm test
 
-# Run interactive OAuth test
-npm run test:oauth-interactive
-```
-
-### Docker Development
-
-Build and test locally:
-
-```sh
-# Build local Docker image
-npm run docker:build-local
-
-# Run locally built image
-docker run -p 3000:3000 hellocoop/mcp:local
-```
-
-### Publishing
-
-For maintainers publishing to Docker Hub:
-
-```sh
-npm run docker:publish
 ```

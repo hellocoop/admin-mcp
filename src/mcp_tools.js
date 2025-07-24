@@ -179,7 +179,7 @@ export function getToolDefinitions() {
 async function getOrCreateDefaultTeam(apiClient, profile) {
   try {
     // Check if user has existing teams (using transformed structure)
-    if (profile?.teams?.length > 0) {
+    if (profile?.teams?.length > 0 && profile.teams[0].id) {
       return profile.teams[0].id;
     }
     

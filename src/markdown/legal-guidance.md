@@ -22,7 +22,7 @@
 After hosting these documents, update your Hellō application:
 
 ```javascript
-// Use hello_update_application with your URLs
+// Use hello_manage_app with action: "update" and your URLs
 {
   "tos_uri": "https://{{website_url}}/terms-of-service",
   "pp_uri": "https://{{website_url}}/privacy-policy"

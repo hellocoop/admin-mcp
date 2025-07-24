@@ -158,7 +158,7 @@ class IntegrationTestSuite {
 
       // Verify expected tools are present
       const toolNames = response.result.tools.map(tool => tool.name);
-      const expectedTools = ['hello_get_profile', 'hello_create_publisher', 'hello_create_application'];
+      const expectedTools = ['hello_get_profile', 'hello_create_publisher', 'hello_manage_app'];
       
       for (const expectedTool of expectedTools) {
         if (!toolNames.includes(expectedTool)) {
@@ -378,15 +378,16 @@ class IntegrationTestSuite {
       }
     });
 
-    await this.runTest('Tool - hello_create_application', async () => {
+    await this.runTest('Tool - hello_manage_app create', async () => {
       const request = {
         jsonrpc: '2.0',
         id: 13,
         method: 'tools/call',
         params: {
-          name: 'hello_create_application',
+          name: 'hello_manage_app',
           arguments: {
-            publisher_id: 'pub123',
+            action: 'create',
+            team_id: 'pub123',
             name: 'Test MCP App',
             dev_redirect_uris: ['http://localhost:8080/callback'],
             device_code: true
@@ -421,16 +422,16 @@ class IntegrationTestSuite {
       }
     });
 
-    await this.runTest('Tool - hello_read_application', async () => {
+    await this.runTest('Tool - hello_manage_app read', async () => {
       const request = {
         jsonrpc: '2.0',
         id: 14,
         method: 'tools/call',
         params: {
-          name: 'hello_read_application',
+          name: 'hello_manage_app',
           arguments: {
-            publisher_id: 'pub123',
-            application_id: 'app123'
+            action: 'read',
+            client_id: 'app123'
           }
         }
       };
@@ -454,16 +455,16 @@ class IntegrationTestSuite {
       }
     });
 
-    await this.runTest('Tool - hello_update_application', async () => {
+    await this.runTest('Tool - hello_manage_app update', async () => {
       const request = {
         jsonrpc: '2.0',
         id: 15,
         method: 'tools/call',
         params: {
-          name: 'hello_update_application',
+          name: 'hello_manage_app',
           arguments: {
-            publisher_id: 'pub123',
-            application_id: 'app123',
+            action: 'update',
+            client_id: 'app123',
             name: 'Updated Test Application',
             tos_uri: 'https://example.com/updated-tos'
           }

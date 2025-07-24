@@ -68,15 +68,14 @@ Hellō automatically adapts to users' browser theme preferences (light/dark mode
 - [ ] Test both versions against their target backgrounds
 - [ ] Ensure logos scale well from 50px to 400px width
 - [ ] Optimize file sizes (aim for under 100KB each)
-- [ ] Upload light theme logo using `hello_update_logo` with `theme: "light"`
-- [ ] Upload dark theme logo using `hello_update_logo` with `theme: "dark"`
-- [ ] Verify both logos appear in application state using `hello_read_application`
+- [ ] Upload light theme logo using `hello_manage_app` with `action: "upload_logo_url"` or `action: "upload_logo_file"` and `theme: "light"`
+- [ ] Upload dark theme logo using `hello_manage_app` with `action: "upload_logo_url"` or `action: "upload_logo_file"` and `theme: "dark"`
+- [ ] Verify both logos appear in application state using `hello_manage_app` with `action: "read"`
 
 ## 🛠️ Tools Available
 
-- `hello_update_logo` - Update logo from URL or binary data with theme support
-- `hello_read_application` - Read current application state including logo URLs
-- `hello_update_application` - Update other application settings (logos are handled separately)
+- `hello_manage_app` - Comprehensive application management including logo uploads from URL or binary data with theme support
+- `hello_manage_app` with `action: "read"` - Read current application state including logo URLs
 
 ## 🎨 Brand Color Considerations
 
@@ -92,9 +91,9 @@ Hellō automatically adapts to users' browser theme preferences (light/dark mode
 
 ## 🔄 Logo Update Workflow
 
-### Using the `hello_update_logo` Tool
+### Using the `hello_manage_app` Tool
 
-The `hello_update_logo` tool handles the complete logo update process:
+The `hello_manage_app` tool with logo upload actions handles the complete logo update process:
 
 1. **Gets current application state** from the admin server
 2. **Uploads your logo** (from URL or binary data)
@@ -106,24 +105,26 @@ The `hello_update_logo` tool handles the complete logo update process:
 ```javascript
 // Upload light theme logo from URL
 {
-  "publisher_id": "pub_123",
-  "application_id": "app_456", 
-  "image_url": "https://example.com/logo-light.png",
+  "action": "upload_logo_url",
+  "client_id": "app_456", 
+  "logo_url": "https://example.com/logo-light.png",
+  "logo_content_type": "image/png",
   "theme": "light"
 }
 
 // Upload dark theme logo from binary data
 {
-  "publisher_id": "pub_123",
-  "application_id": "app_456",
-  "image_data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
+  "action": "upload_logo_file",
+  "client_id": "app_456",
+  "logo_file": "iVBORw0KGgoAAAANSUhEUgAA...",
+  "logo_content_type": "image/png",
   "theme": "dark"
 }
 ```
 
 ### Reading Application State
 
-Use `hello_read_application` to see both logo URLs:
+Use `hello_manage_app` with `action: "read"` to see both logo URLs:
 - `image_uri` - Light theme logo (dark elements)
 - `dark_image_uri` - Dark theme logo (light elements)
 

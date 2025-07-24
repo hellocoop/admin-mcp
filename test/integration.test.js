@@ -216,37 +216,38 @@ class MCPIntegrationTester {
 
       // Test application creation
       const appName = `Test App ${Date.now()}`;
-      const application = await this.testTool('hello_create_application', {
-        publisher_id: publisher.publisher_id,
+      const application = await this.testTool('hello_manage_app', {
+        action: 'create',
+        team_id: publisher.publisher_id,
         name: appName,
         dev_redirect_uris: ['http://localhost:3000/callback', 'http://127.0.0.1:3000/callback'],
         prod_redirect_uris: ['https://example.com/callback'],
-        localhost: true,
-        local_ip: true,
-        wildcard_domain: false,
+        dev_localhost: true,
+        dev_127_0_0_1: true,
+        dev_wildcard: false,
         device_code: false
       }, 'Create test application');
 
-      if (application && application.client_id) {
+      if (application && application.application && application.application.client_id) {
         this.createdResources.applications.push({
           publisher_id: publisher.publisher_id,
-          application_id: application.client_id
+          application_id: application.application.client_id
         });
 
         // Test application read
-        await this.testTool('hello_read_application', {
-          publisher_id: publisher.publisher_id,
-          application_id: application.client_id
+        await this.testTool('hello_manage_app', {
+          action: 'read',
+          client_id: application.application.client_id
         }, 'Read application details');
 
         // Test application update
-        await this.testTool('hello_update_application', {
-          publisher_id: publisher.publisher_id,
-          application_id: application.client_id,
+        await this.testTool('hello_manage_app', {
+          action: 'update',
+          client_id: application.application.client_id,
           name: `${appName} (Updated)`,
           dev_redirect_uris: ['http://localhost:3000/callback', 'http://localhost:8080/callback'],
-          localhost: true,
-          local_ip: true
+          dev_localhost: true,
+          dev_127_0_0_1: true
         }, 'Update application');
 
         // Test logo URL testing
@@ -255,19 +256,20 @@ class MCPIntegrationTester {
         }, 'Test logo URL accessibility');
 
         // Test logo upload from URL
-        await this.testTool('hello_upload_logo', {
-          publisher_id: publisher.publisher_id,
-          application_id: application.client_id,
-          image_url: 'https://www.hello.dev/images/hello-logo.svg'
+        await this.testTool('hello_manage_app', {
+          action: 'upload_logo_url',
+          client_id: application.application.client_id,
+          logo_url: 'https://www.hello.dev/images/hello-logo.svg',
+          logo_content_type: 'image/svg+xml'
         }, 'Upload logo from URL');
 
         // Test logo upload from base64 data (small test image)
         const testImageBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='; // 1x1 transparent PNG
-        await this.testTool('hello_upload_logo', {
-          publisher_id: publisher.publisher_id,
-          application_id: application.client_id,
-          image_data: testImageBase64,
-          filename: 'test-logo.png'
+        await this.testTool('hello_manage_app', {
+          action: 'upload_logo_file',
+          client_id: application.application.client_id,
+          logo_file: testImageBase64,
+          logo_content_type: 'image/png'
         }, 'Upload logo from base64');
 
         // Test secret creation
@@ -337,8 +339,8 @@ class MCPIntegrationTester {
       let resultSummary = '';
       if (toolName === 'hello_create_publisher' && result.publisher_id) {
         resultSummary = ` (ID: ${result.publisher_id})`;
-      } else if (toolName === 'hello_create_application' && result.client_id) {
-        resultSummary = ` (ID: ${result.client_id})`;
+      } else if (toolName === 'hello_manage_app' && result.application && result.application.client_id) {
+        resultSummary = ` (ID: ${result.application.client_id})`;
       } else if (toolName === 'hello_version' && result.VERSION) {
         resultSummary = ` (Version: ${result.VERSION})`;
       }
