@@ -191,7 +191,7 @@ async function getOrCreateDefaultTeam(apiClient, profile) {
       name: defaultTeamName
     });
     
-    return newTeam.publisher_id;
+    return newTeam.profile.id;
   } catch (error) {
     throw new Error(`Failed to get or create default team: ${error.message}`);
   }
