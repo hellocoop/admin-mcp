@@ -2,7 +2,7 @@
 // Focused on new Hellō developers who want to easily create first app
 
 import crypto from 'crypto';
-import { validateMimeType, detectMimeType, extractBase64FromDataUrl } from './utils.js';
+import { validateMimeType, detectMimeType, extractBase64FromDataUrl, createMCPContent } from './utils.js';
 
 /**
  * Flatten application object for response
@@ -525,14 +525,20 @@ async function handleManageApp(args, apiClient) {
  * @returns {Promise<Object>} - Tool execution result
  */
 export async function handleToolCall(toolName, args, apiClient, authManager) {
+  let result;
+  
   switch (toolName) {
     case 'hello_manage_app': {
-      return await handleManageApp(args, apiClient);
+      result = await handleManageApp(args, apiClient);
+      break;
     }
 
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }
+  
+  // Format all tool responses consistently for MCP
+  return createMCPContent(result);
 }
 
 /**
