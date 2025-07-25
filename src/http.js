@@ -7,7 +7,6 @@ import { HelloMCPServer } from './mcp-server.js';
 import { createWellKnownHandlers } from './oauth-endpoints.js';
 import { setupLogging, logOptions } from './log.js';
 import { jwtValidationPlugin } from './jwt-validation.js';
-import { trackServerStart, trackProtocolHandshake } from './analytics.js';
 import packageJson from './package.js';
 import { PORT, HOST, CONFIG } from './config.js';
 
@@ -333,13 +332,6 @@ class MCPHttpServer {
         event: 'server-listening',
         address: `http://${this.host}:${this.port}`
       }, `MCP Server listening on http://${this.host}:${this.port}`);
-      
-      // Track server startup
-      await trackServerStart(this.mcpServer, {
-        port: this.port.toString(),
-        host: this.host
-      });
-      
     } catch (err) {
       console.error('Error starting server:', err);
       process.exit(1);

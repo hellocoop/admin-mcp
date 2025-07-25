@@ -15,7 +15,6 @@ import { AdminAPIClient } from './api_client.js';
 import { getToolDefinitions, handleToolCall } from './mcp_tools.js';
 import { getResourceDefinitions, handleResourceRead } from './mcp_resources.js';
 import { getPromptDefinitions, handlePromptCall } from './mcp_prompts.js';
-import { trackToolCall, trackResourceRead, trackProtocolHandshake } from './analytics.js';
 import packageJson from './package.js';
 
 export class MCPRouter {
@@ -85,12 +84,10 @@ export class MCPRouter {
           requestId: request.id || 'unknown',
           serverHost: request._serverContext?.serverHost || ''
         };
-        await trackResourceRead(uri, result.contents?.[0]?.mimeType || 'unknown', context);
         
         return result;
       } catch (error) {
         // Track failed resource read (optional - could be noisy)
-        // await trackError('resource_error', null, error.message, { transport: 'mcp' });
         throw error;
       }
     });
@@ -111,7 +108,6 @@ export class MCPRouter {
           requestId: request.id || 'unknown',
           serverHost: request._serverContext?.serverHost || ''
         };
-        await trackToolCall(name, true, responseTime, context);
         
         return result;
       } catch (error) {
@@ -124,7 +120,6 @@ export class MCPRouter {
           serverHost: request._serverContext?.serverHost || '',
           error: error.message
         };
-        await trackToolCall(name, false, responseTime, context);
 
         // Handle different error types appropriately for MCP clients
         if (error.httpStatus && error.httpHeaders) {
