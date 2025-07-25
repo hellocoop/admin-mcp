@@ -12,8 +12,8 @@ async function sendPlausibleEvent(url) {
                 url: url,
                 domain: 'mcp.hello-beta.net',
                 props: {
-                    agent,
-                    transport,
+                    // agent,
+                    // transport,
                     mcp_protocol_version: null,
                     admin_mcp_version: version,
                 }
