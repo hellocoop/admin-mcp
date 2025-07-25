@@ -15,6 +15,7 @@ import { AdminAPIClient } from './api_client.js';
 import { getToolDefinitions, handleToolCall } from './mcp_tools.js';
 import { getResourceDefinitions, handleResourceRead } from './mcp_resources.js';
 import { getPromptDefinitions, handlePromptCall } from './mcp_prompts.js';
+import { setSessionClientInfo } from './analytics.js';
 import packageJson from './package.js';
 
 export class MCPRouter {
@@ -167,6 +168,11 @@ export class MCPRouter {
     try {
       switch (method) {
         case 'initialize':
+          // Capture client information for analytics
+          const clientInfo = request.params?.clientInfo;
+          const protocolVersion = request.params?.protocolVersion;
+          const transport = this.getTransportType();
+          setSessionClientInfo(clientInfo, protocolVersion, transport);
           return {
             jsonrpc: '2.0',
             id,
