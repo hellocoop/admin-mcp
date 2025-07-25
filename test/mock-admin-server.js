@@ -564,27 +564,16 @@ app.post('/api/v1/publishers/:publisherId/applications/:applicationId/logo', asy
     return reply.code(404).send({ error: 'Application not found' });
   }
   
-  // For now, just return success - we can enhance the file validation later
-  // The important thing is testing that the MCP server correctly calls this endpoint
   console.log(`📁 Mock Admin Server: Logo upload request received for ${applicationId}`);
   console.log(`   Content-Type: ${request.headers['content-type']}`);
   
-  // Mock logo upload - return a mock URL with validation info
+  // Simple mock response - just return success with a generic logo URL
+  // The admin server doesn't need to validate file types, that's handled by the MCP server
   const logoUrl = `https://mock-cdn.hello.coop/logos/${applicationId}-${Date.now()}.png`;
   
   return {
     image_uri: logoUrl,
-    message: 'Logo uploaded successfully',
-    // Include mock validation info for testing
-    upload_info: {
-      field_name: 'file',
-      original_filename: `logo_${Date.now()}.png`,
-      content_type: 'image/png',
-      file_size_bytes: 67, // Size of our test PNG
-      base64_length: 88, // Length of our test base64
-      png_validated: true,
-      received_base64_preview: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADU'
-    }
+    message: 'Logo uploaded successfully'
   };
 });
 

@@ -2,6 +2,7 @@
 // Focused on new Hellō developers who want to easily create first app
 
 import crypto from 'crypto';
+import FormData from 'form-data';
 import { validateMimeType, detectMimeType, extractBase64FromDataUrl, createMCPContent } from './utils.js';
 import { sendPlausibleEvent } from './analytics.js';
 
@@ -430,7 +431,9 @@ async function handleManageApp(args, apiClient) {
       }
       
       // Generate filename from content type
-      const extension = logo_content_type.split('/')[1] || 'png';
+      const mimeSubtype = logo_content_type.split('/')[1] || 'png';
+      // Handle special cases like 'svg+xml' -> 'svg'
+      const extension = mimeSubtype.includes('+') ? mimeSubtype.split('+')[0] : mimeSubtype;
       const timestamp = Date.now();
       const logo_filename = `logo_${timestamp}.${extension}`;
       
@@ -550,21 +553,20 @@ export async function handleToolCall(toolName, args, apiClient, authManager) {
 }
 
 /**
- * Upload logo using binary data with multipart form
- * @param {string} publisherId - Publisher ID
- * @param {string} applicationId - Application ID  
- * @param {string} logoFile - Base64 encoded file content
- * @param {string} logoFilename - Original filename
- * @param {string} logoContentType - MIME type
+ * Upload logo binary data to the admin API
+ * @param {string} publisherId - The publisher/team ID
+ * @param {string} applicationId - The application ID
+ * @param {string} logoFile - Base64 encoded logo file
+ * @param {string} logoFilename - Generated filename for the logo
+ * @param {string} logoContentType - MIME type of the logo
  * @param {Object} apiClient - Admin API client instance
- * @returns {Promise<Object>} - Upload result
+ * @returns {Promise<Object>} - Upload result from admin API
  */
 async function uploadLogoBinary(publisherId, applicationId, logoFile, logoFilename, logoContentType, apiClient) {
   // Convert base64 to buffer
   const buffer = Buffer.from(logoFile, 'base64');
   
-  // Create FormData
-  const FormData = (await import('form-data')).default;
+  // Create FormData - use the imported module
   const formData = new FormData();
   
   // Add the file with provided filename and content type
@@ -573,7 +575,7 @@ async function uploadLogoBinary(publisherId, applicationId, logoFile, logoFilena
     contentType: logoContentType
   });
   
-  // Make the API call with form data
+  // Make the API call with form data using a custom approach
   const path = `/api/v1/publishers/${publisherId}/applications/${applicationId}/logo`;
   
   try {
@@ -581,20 +583,46 @@ async function uploadLogoBinary(publisherId, applicationId, logoFile, logoFilena
     const { HELLO_ADMIN } = await import('./config.js');
     const accessToken = apiClient.authManager.getAccessToken();
     
-    const response = await fetch(`${HELLO_ADMIN}${path}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        ...formData.getHeaders()
-      },
-      body: formData
+    // Convert form-data to a format that works better with fetch
+    return new Promise((resolve, reject) => {
+      // Get the form data as buffer
+      formData.getLength((err, length) => {
+        if (err) {
+          reject(new Error(`Failed to get form data length: ${err.message}`));
+          return;
+        }
+        
+        const chunks = [];
+        formData.on('data', chunk => chunks.push(chunk));
+        formData.on('end', async () => {
+          try {
+            const buffer = Buffer.concat(chunks);
+            
+            const response = await fetch(`${HELLO_ADMIN}${path}`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': formData.getHeaders()['content-type'],
+                'Content-Length': length.toString()
+              },
+              body: buffer
+            });
+            
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+            }
+            
+            resolve(await response.json());
+          } catch (error) {
+            reject(new Error(`Logo upload failed: ${error.message}`));
+          }
+        });
+        
+        formData.on('error', (error) => {
+          reject(new Error(`Form data error: ${error.message}`));
+        });
+      });
     });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${await response.text()}`);
-    }
-    
-    return await response.json();
   } catch (error) {
     throw new Error(`Logo upload failed: ${error.message}`);
   }

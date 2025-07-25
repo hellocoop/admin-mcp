@@ -1,6 +1,6 @@
 {
   "name": "@hellocoop/admin-mcp",
-  "version": "1.4.0",
+  "version": "1.4.4",
   "description": "Model Context Protocol (MCP) for Hellō Admin API.",
   "type": "module",
   "main": "src/index.js",
@@ -34,8 +34,7 @@
     "version:minor": "scripts/version-bump.sh minor",
     "version:major": "scripts/version-bump.sh major",
     "release:patch": "scripts/version-bump.sh patch --publish",
-    "release:minor": "scripts/version-bump.sh minor --publish",
-    "prepublishOnly": "npm test"
+    "release:minor": "scripts/version-bump.sh minor --publish"
   },
   "keywords": [
     "mcp",
