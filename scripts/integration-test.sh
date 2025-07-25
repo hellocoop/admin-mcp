@@ -179,8 +179,8 @@ test_tool_with_profile() {
     local auth_header="Authorization: Bearer $VALID_TOKEN"
     local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request" "$auth_header")
     
-    # Should get successful result with profile data included
-    echo "$response" | grep -q '"result"' && echo "$response" | grep -q '"profile"' && echo "$response" | grep -q '"application"'
+    # Should get successful result with profile data included in MCP contents format
+    echo "$response" | grep -q '"result"' && echo "$response" | grep -q '"contents"' && echo "$response" | jq -r '.result.contents[0].text' | grep -q '"profile"' && echo "$response" | jq -r '.result.contents[0].text' | grep -q '"application"'
 }
 
 # Test create action with auto-generated name
@@ -189,8 +189,8 @@ test_create_app_auto_name() {
     local auth_header="Authorization: Bearer $VALID_TOKEN"
     local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request" "$auth_header")
     
-    # Should get successful result with auto-generated name
-    echo "$response" | grep -q '"result"' && echo "$response" | grep -q '"application"' && echo "$response" | grep -q "'s App"
+    # Should get successful result with auto-generated name in MCP contents format
+    echo "$response" | grep -q '"result"' && echo "$response" | grep -q '"contents"' && echo "$response" | jq -r '.result.contents[0].text' | grep -q '"application"' && echo "$response" | jq -r '.result.contents[0].text' | grep -q "'s App"
 }
 
 # Test create action with full parameters
@@ -200,9 +200,9 @@ test_create_app_full() {
     local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request" "$auth_header")
     
     # Should get successful result and store client_id for other tests
-    if echo "$response" | grep -q '"result"' && echo "$response" | grep -q '"application"'; then
-        # Extract client_id for use in other tests
-        TEST_CLIENT_ID=$(echo "$response" | jq -r '.result.application.id // .result.application.client_id // empty')
+    if echo "$response" | grep -q '"result"' && echo "$response" | grep -q '"contents"' && echo "$response" | jq -r '.result.contents[0].text' | grep -q '"application"'; then
+        # Extract client_id from MCP contents format - parse the JSON text content and extract the application ID
+        TEST_CLIENT_ID=$(echo "$response" | jq -r '.result.contents[0].text' | jq -r '.application.id // empty')
         return 0
     fi
     return 1
@@ -214,8 +214,8 @@ test_read_profile_only() {
     local auth_header="Authorization: Bearer $VALID_TOKEN"
     local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request" "$auth_header")
     
-    # Should get successful result with profile but no teams/applications initially
-    echo "$response" | grep -q '"result"' && echo "$response" | grep -q '"profile"'
+    # Should get successful result with profile in MCP contents format
+    echo "$response" | grep -q '"result"' && echo "$response" | grep -q '"contents"' && echo "$response" | jq -r '.result.contents[0].text' | grep -q '"profile"'
 }
 
 # Test read action with client_id (after app creation)
@@ -230,7 +230,7 @@ test_read_app() {
     local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request" "$auth_header")
     
     # Should get successful result with application details
-    echo "$response" | grep -q '"result"' && echo "$response" | grep -q '"application"' && echo "$response" | grep -q "$TEST_CLIENT_ID"
+    echo "$response" | grep -q '"result"' && echo "$response" | jq -r '.result.contents[0].text' | grep -q '"application"' && echo "$response" | jq -r '.result.contents[0].text' | grep -q "$TEST_CLIENT_ID"
 }
 
 # Test update action
@@ -245,7 +245,7 @@ test_update_app() {
     local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request" "$auth_header")
     
     # Should get successful result
-    echo "$response" | grep -q '"result"' && echo "$response" | grep -q '"application"' && echo "$response" | grep -q "Updated Test App"
+    echo "$response" | grep -q '"result"' && echo "$response" | jq -r '.result.contents[0].text' | grep -q '"application"' && echo "$response" | jq -r '.result.contents[0].text' | grep -q "Updated Test App"
 }
 
 # Test create_secret action
@@ -260,7 +260,7 @@ test_create_secret() {
     local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request" "$auth_header")
     
     # Should get successful result with client_secret
-    echo "$response" | grep -q '"result"' && echo "$response" | grep -q '"client_secret"'
+    echo "$response" | grep -q '"result"' && echo "$response" | jq -r '.result.contents[0].text' | grep -q '"client_secret"'
 }
 
 # Test upload_logo_url action
@@ -275,7 +275,7 @@ test_upload_logo_url() {
     local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request" "$auth_header")
     
     # Should get successful result with upload details
-    echo "$response" | grep -q '"result"' && echo "$response" | grep -q '"upload_result"'
+    echo "$response" | grep -q '"result"' && echo "$response" | jq -r '.result.contents[0].text' | grep -q '"upload_result"'
 }
 
 # Test upload_logo_file action
@@ -292,7 +292,7 @@ test_upload_logo_file() {
     local response=$(http_request "POST" "$MCP_SERVER_URL/" "$request" "$auth_header")
     
     # Should get successful result with upload details
-    echo "$response" | grep -q '"result"' && echo "$response" | grep -q '"upload_result"'
+    echo "$response" | grep -q '"result"' && echo "$response" | jq -r '.result.contents[0].text' | grep -q '"upload_result"'
 }
 
 test_upload_logo_url_error_handling() {
