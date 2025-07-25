@@ -142,7 +142,7 @@ export const validateJWT = (token) => {
  */
 export const createWWWAuthenticateHeader = (validationResult) => {
   const realm = 'Hello MCP Server'
-  const resourceMetadata = `https://mcp.${DOMAIN}/.well-known/oauth-protected-resource`
+      const resourceMetadata = `https://admin-mcp.${DOMAIN}/.well-known/oauth-protected-resource`
   
   let headerParts = [
     `realm="${realm}"`,

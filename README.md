@@ -1,4 +1,4 @@
-# @hellocoop/mcp (BETA)
+# @hellocoop/admin-mcp (BETA)
 
 Model Context Protocol (MCP) server for creating and managing [Hellō](https://hello.dev) applications.
 
@@ -17,7 +17,7 @@ Copy one of these configurations into your MCP client settings:
 {
   "hello-admin-stdio": {
     "command": "npx",
-    "args": ["-y", "@hellocoop/mcp@latest"],
+            "args": ["-y", "@hellocoop/admin-mcp@latest"],
     "type": "stdio"
   }
 }
@@ -27,7 +27,7 @@ Copy one of these configurations into your MCP client settings:
 ```json
 {
   "hello-admin-http": {
-    "url": "https://mcp.hello.coop/",
+          "url": "https://admin-mcp.hello.coop/",
     "type": "http"
   }
 }
@@ -134,8 +134,8 @@ For local development and testing:
 
 ```sh
 # Clone the repository
-git clone https://github.com/hellocoop/MCP
-cd MCP
+git clone https://github.com/hellocoop/admin-mcp
+cd admin-mcp
 
 # Install dependencies
 npm install
@@ -148,7 +148,7 @@ The configure your AI client to run the local version
 {
   "hello-admin-local": {
     "command": "node",
-    "args": ["path/to/HelloCoop/MCP/src/stdio.js"],
+            "args": ["path/to/HelloCoop/admin-mcp/src/stdio.js"],
     "type": "stdio"
   }
 }

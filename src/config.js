@@ -17,7 +17,7 @@ export const HELLO_AUDIENCE = process.env.HELLO_AUDIENCE || `https://admin.${HEL
 
 // External service URLs (for OAuth metadata and public endpoints)
 export const ADMIN_BASE_URL = `https://admin.${HELLO_DOMAIN}`;
-export const MCP_BASE_URL = `https://mcp.${HELLO_DOMAIN}`;
+export const MCP_BASE_URL = `https://admin-mcp.${HELLO_DOMAIN}`;
 export const WALLET_BASE_URL = `https://wallet.${HELLO_DOMAIN}`;
 export const ISSUER_BASE_URL = `https://issuer.${HELLO_DOMAIN}`;
 
@@ -34,7 +34,7 @@ export const IS_PRODUCTION = NODE_ENV === 'production';
 
 // Package information
 export const VERSION = process.env.npm_package_version || '1.0.0';
-export const NAME = process.env.npm_package_name || '@hellocoop/mcp';
+export const NAME = process.env.npm_package_name || '@hellocoop/admin-mcp';
 export const DESCRIPTION = process.env.npm_package_description || 'Model Context Protocol (MCP) for Hellō Admin API.';
 
 // Configuration object for logging

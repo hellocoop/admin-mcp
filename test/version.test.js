@@ -5,7 +5,7 @@ import { setTimeout } from 'timers/promises';
 
 // Version test - calls a tool that doesn't require authentication
 async function testVersion() {
-  console.log('🔧 Testing @hellocoop/mcp version tool...');
+  console.log('🔧 Testing @hellocoop/admin-mcp version tool...');
   console.log('🌐 Domain:', process.env.HELLO_DOMAIN || 'hello.coop');
   
   const cli = spawn('node', ['bin/cli.js'], {

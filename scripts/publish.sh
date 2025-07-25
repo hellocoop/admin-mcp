@@ -7,9 +7,9 @@ set -e  # Exit on any error
 
 # Configuration
 DOCKER_USERNAME="hellocoop"
-IMAGE_NAME="mcp"
+IMAGE_NAME="admin-mcp"
 FULL_IMAGE_NAME="${DOCKER_USERNAME}/${IMAGE_NAME}"
-NPM_PACKAGE_NAME="@hellocoop/mcp"
+NPM_PACKAGE_NAME="@hellocoop/admin-mcp"
 
 # Colors for output
 RED='\033[0;31m'

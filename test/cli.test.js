@@ -40,7 +40,7 @@ const expectedTools = [
 ];
 
 async function testCLI() {
-  console.log('🧪 Testing @hellocoop/mcp CLI...');
+  console.log('🧪 Testing @hellocoop/admin-mcp CLI...');
   
   const cli = spawn('node', ['bin/cli.js'], {
     stdio: ['pipe', 'pipe', 'pipe'],

@@ -5,7 +5,7 @@ import { IS_DEVELOPMENT, MCP_STDIO_CLIENT_ID, MCP_HTTP_CLIENT_ID } from './confi
 import { getLogContext } from './log.js';
 import packageJson from './package.js';
 
-const PLAUSIBLE_DOMAIN = 'mcp.hello.coop';
+const PLAUSIBLE_DOMAIN = 'admin-mcp.hello.coop';
 const PLAUSIBLE_API = 'https://plausible.io/api/event';
 
 // Check if analytics should be ignored (for development/testing)

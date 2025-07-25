@@ -1,4 +1,4 @@
-// MCP Server for @hellocoop/mcp (refactored with modular architecture)
+// MCP Server for @hellocoop/admin-mcp (refactored with modular architecture)
 // Uses MCPRouter and feature modules for clean separation of concerns
 
 import { MCPRouter } from './mcp_router.js';

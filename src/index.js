@@ -1,4 +1,4 @@
-// Main entry for @hellocoop/mcp package
+// Main entry for @hellocoop/admin-mcp package
 // Exports the core MCP server functionality for programmatic use
 
 import { HelloMCPServer } from './mcp-server.js';

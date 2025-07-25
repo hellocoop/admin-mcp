@@ -192,7 +192,7 @@ We follow [Semantic Versioning (SemVer)](https://semver.org/):
 ### "Version already exists" Error
 ```bash
 # Check current version
-npm view @hellocoop/mcp version
+npm view @hellocoop/admin-mcp version
 
 # Bump version first
 npm run version:patch
@@ -225,7 +225,7 @@ npm login
 npm org ls hellocoop
 
 # Check package-specific access
-npm view @hellocoop/mcp
+npm view @hellocoop/admin-mcp
 ```
 
 ### Git Issues
@@ -287,8 +287,8 @@ git push origin v1.0.1
 
 All scripts use these configurations:
 
-- **npm package**: `@hellocoop/mcp`
-- **Docker image**: `hellocoop/mcp`
+- **npm package**: `@hellocoop/admin-mcp`
+- **Docker image**: `hellocoop/admin-mcp`
 - **Supported platforms**: linux/amd64, linux/arm64
 - **Docker tags**: `latest`, `v{version}`
 

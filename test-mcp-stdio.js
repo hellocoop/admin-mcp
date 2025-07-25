@@ -11,10 +11,10 @@ class MCPClient {
     }
 
     async start() {
-        console.log('🚀 Starting MCP server: npx @hellocoop/mcp@latest');
+        console.log('🚀 Starting MCP server: npx @hellocoop/admin-mcp@latest');
         
         // Launch the MCP server
-        this.process = spawn('npx', ['@hellocoop/mcp@latest'], {
+        this.process = spawn('npx', ['@hellocoop/admin-mcp@latest'], {
             stdio: ['pipe', 'pipe', 'pipe'],
             env: {
                 ...process.env,
