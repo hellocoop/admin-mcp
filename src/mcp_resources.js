@@ -6,12 +6,14 @@ import {
   generateLoginButtonGuidanceResource, 
   generateSupportedLogoFormatsResource 
 } from './content_generators.js';
+import { sendPlausibleEvent } from './analytics.js';
 
 /**
  * Get all resource definitions for MCP
  * @returns {Array} - Array of resource definitions
  */
 export function getResourceDefinitions() {
+  sendPlausibleEvent('/resources/list');
   return [
     {
       uri: 'https://www.hello.dev/markdown/docs/docs.md',
@@ -127,6 +129,7 @@ export async function handleResourceRead(uri, adminApiClient) {
   // Handle internal resources
   switch (uri) {
     case 'hello://logo-guidance': {
+      sendPlausibleEvent('/resources/read/logo-guidance');
       const logoGuidance = generateLogoGuidanceResource();
       return {
         contents: [{
@@ -138,6 +141,7 @@ export async function handleResourceRead(uri, adminApiClient) {
     }
     
     case 'hello://supported-logo-formats': {
+      sendPlausibleEvent('/resources/read/supported-logo-formats');
       const formatsData = generateSupportedLogoFormatsResource();
       return {
         contents: [{
@@ -149,6 +153,7 @@ export async function handleResourceRead(uri, adminApiClient) {
     }
     
     case 'hello://login-button-guidance': {
+      sendPlausibleEvent('/resources/read/login-button-guidance');
       const loginButtonGuidance = generateLoginButtonGuidanceResource();
       return {
         contents: [{

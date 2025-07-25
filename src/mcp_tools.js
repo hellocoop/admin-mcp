@@ -4,6 +4,7 @@
 import crypto from 'crypto';
 import FormData from 'form-data';
 import { validateMimeType, detectMimeType, extractBase64FromDataUrl, createMCPContent } from './utils.js';
+import { sendPlausibleEvent } from './analytics.js';
 
 /**
  * Flatten application object for response
@@ -40,6 +41,7 @@ function flattenApp(app) {
  * @returns {Array} - Array of tool definitions
  */
 export function getToolDefinitions() {
+  sendPlausibleEvent('/tools/list');
   return [
     {
       name: 'hello_manage_app',
@@ -255,6 +257,7 @@ async function handleManageApp(args, apiClient) {
 
   // Handle read action separately - no need to create teams
   if (action === 'read') {
+    sendPlausibleEvent('/tools/call/hello_manage_app/read');
     // If no client_id provided, return profile only
     if (!client_id) {
       return {
@@ -300,6 +303,7 @@ async function handleManageApp(args, apiClient) {
   
   switch (action) {
     case 'create': {
+      sendPlausibleEvent('/tools/call/hello_manage_app/create');
       // Generate name from existing profile if not provided
       let appName = name;
       if (!appName) {
@@ -343,6 +347,7 @@ async function handleManageApp(args, apiClient) {
 
     
     case 'update': {
+      sendPlausibleEvent('/tools/call/hello_manage_app/update');
       if (!client_id) throw new Error('Client ID is required for update action');
       
       // Get current app data first
@@ -390,6 +395,7 @@ async function handleManageApp(args, apiClient) {
     }
     
     case 'create_secret': {
+      sendPlausibleEvent('/tools/call/hello_manage_app/create_secret');
       if (!client_id) throw new Error('Client ID is required for create_secret action');
       
       // Generate hash and salt automatically
@@ -412,6 +418,7 @@ async function handleManageApp(args, apiClient) {
     }
     
     case 'upload_logo_file': {
+      sendPlausibleEvent('/tools/call/hello_manage_app/upload_logo_file');
       if (!client_id) throw new Error('Client ID is required for upload_logo_file action');
       if (!logo_file || !logo_content_type) {
         throw new Error('logo_file and logo_content_type are required for upload_logo_file action');
@@ -467,6 +474,7 @@ async function handleManageApp(args, apiClient) {
     }
     
     case 'upload_logo_url': {
+      sendPlausibleEvent('/tools/call/hello_manage_app/upload_logo_url');
       if (!client_id) throw new Error('Client ID is required for upload_logo_url action');
       if (!logo_url || !logo_content_type) {
         throw new Error('logo_url and logo_content_type are required for upload_logo_url action');
