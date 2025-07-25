@@ -1,0 +1,9 @@
+{
+  "timeout": 30000,
+  "recursive": true,
+  "exit": true,
+  "spec": [
+    "test/integration/**/*.test.js"
+  ],
+  "reporter": "spec"
+} 

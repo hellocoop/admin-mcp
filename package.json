@@ -11,10 +11,13 @@
   "scripts": {
     "start": "node src/stdio.js",
     "start:http": "node src/http.js",
-    "test": "npm run test:tools && npm run test:integration:docker",
+    "test": "npm run test:tools && npm run test:integration:mocha:shell",
+    "test:legacy": "npm run test:tools && npm run test:integration:docker",
     "test:tools": "node test/tools.test.js",
     "test:integration": "node test/integration-full.test.js",
     "test:integration:docker": "./scripts/integration-test.sh",
+    "test:integration:mocha": "mocha",
+    "test:integration:mocha:shell": "./scripts/test-integration-mocha.sh",
     "test:oauth-interactive": "node test/oauth-interactive.test.js",
     "test:version": "node test/version.test.js",
     "test:cli": "node test/cli.test.js",
@@ -60,6 +63,9 @@
     "pino-pretty": "^11.0.0"
   },
   "devDependencies": {
+    "chai": "^5.2.1",
+    "chai-http": "^5.1.2",
+    "mocha": "^11.7.1",
     "semver": "^7.7.2"
   }
 }
