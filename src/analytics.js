@@ -1,5 +1,5 @@
 import { version } from './package.js';
-import { NODE_ENV, HELLO_DOMAIN } from './config.js';
+import { NODE_ENV, HELLO_DOMAIN, MCP_BASE_URL } from './config.js';
 
 // Session store to maintain client information across requests
 let sessionClientInfo = null;
@@ -36,17 +36,6 @@ function shouldSendAnalytics() {
     return NODE_ENV === 'production' || HELLO_DOMAIN === 'hello-beta.net';
 }
 
-/**
- * Get the appropriate domain for analytics based on environment
- * @returns {string} - Domain for analytics
- */
-function getAnalyticsDomain() {
-    if (HELLO_DOMAIN === 'hello-beta.net') {
-        return 'admin-mcp.hello-beta.net';
-    }
-    return 'admin-mcp.hello.coop';
-}
-
 async function sendPlausibleEvent(url) {
     // Skip analytics if not in beta or production
     if (!shouldSendAnalytics()) {
@@ -59,7 +48,7 @@ async function sendPlausibleEvent(url) {
         const eventData = {
             name: 'pageview',
             url: url,
-            domain: getAnalyticsDomain(),
+            domain: MCP_BASE_URL.replace('https://', ''),
             props: {
                 client_name: clientInfo?.client_name,
                 client_version: clientInfo?.client_version,
@@ -71,7 +60,7 @@ async function sendPlausibleEvent(url) {
         
         console.log('Sending Plausible event:', {
             url: url,
-            domain: getAnalyticsDomain(),
+            domain: MCP_BASE_URL.replace('https://', ''),
             client_name: clientInfo?.client_name,
             client_version: clientInfo?.client_version,
             transport: clientInfo?.transport,
