@@ -423,7 +423,9 @@ async function handleManageApp(args, apiClient) {
       }
       
       // Generate filename from content type
-      const extension = logo_content_type.split('/')[1] || 'png';
+      const mimeSubtype = logo_content_type.split('/')[1] || 'png';
+      // Handle special cases like 'svg+xml' -> 'svg'
+      const extension = mimeSubtype.includes('+') ? mimeSubtype.split('+')[0] : mimeSubtype;
       const timestamp = Date.now();
       const logo_filename = `logo_${timestamp}.${extension}`;
       
