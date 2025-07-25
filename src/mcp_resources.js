@@ -13,6 +13,7 @@ import { sendPlausibleEvent } from './analytics.js';
  * @returns {Array} - Array of resource definitions
  */
 export function getResourceDefinitions() {
+  sendPlausibleEvent('/resources/list');
   return [
     {
       uri: 'https://www.hello.dev/markdown/docs/docs.md',

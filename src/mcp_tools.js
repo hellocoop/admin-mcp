@@ -40,6 +40,7 @@ function flattenApp(app) {
  * @returns {Array} - Array of tool definitions
  */
 export function getToolDefinitions() {
+  sendPlausibleEvent('/tools/list');
   return [
     {
       name: 'hello_manage_app',
