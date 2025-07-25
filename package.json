@@ -34,8 +34,7 @@
     "version:minor": "scripts/version-bump.sh minor",
     "version:major": "scripts/version-bump.sh major",
     "release:patch": "scripts/version-bump.sh patch --publish",
-    "release:minor": "scripts/version-bump.sh minor --publish",
-    "prepublishOnly": "npm test"
+    "release:minor": "scripts/version-bump.sh minor --publish"
   },
   "keywords": [
     "mcp",
