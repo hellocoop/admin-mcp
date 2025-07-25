@@ -1,4 +1,5 @@
 import { version } from './package.js';
+import { NODE_ENV, HELLO_DOMAIN } from './config.js';
 
 // Session store to maintain client information across requests
 let sessionClientInfo = null;
@@ -26,13 +27,39 @@ function getSessionClientInfo() {
     return sessionClientInfo;
 }
 
+/**
+ * Check if analytics should be enabled based on environment
+ * @returns {boolean} - True if analytics should be sent
+ */
+function shouldSendAnalytics() {
+    // Only send analytics in beta or production environments
+    return NODE_ENV === 'production' || HELLO_DOMAIN === 'hello-beta.net';
+}
+
+/**
+ * Get the appropriate domain for analytics based on environment
+ * @returns {string} - Domain for analytics
+ */
+function getAnalyticsDomain() {
+    if (HELLO_DOMAIN === 'hello-beta.net') {
+        return 'admin-mcp.hello-beta.net';
+    }
+    return 'admin-mcp.hello.coop';
+}
+
 async function sendPlausibleEvent(url) {
+    // Skip analytics if not in beta or production
+    if (!shouldSendAnalytics()) {
+        console.log('Analytics disabled for development environment');
+        return;
+    }
+
     try {
         const clientInfo = getSessionClientInfo();
         const eventData = {
             name: 'pageview',
             url: url,
-            domain: 'mcp.hello-beta.net',
+            domain: getAnalyticsDomain(),
             props: {
                 client_name: clientInfo?.client_name,
                 client_version: clientInfo?.client_version,
@@ -44,6 +71,7 @@ async function sendPlausibleEvent(url) {
         
         console.log('Sending Plausible event:', {
             url: url,
+            domain: getAnalyticsDomain(),
             client_name: clientInfo?.client_name,
             client_version: clientInfo?.client_version,
             transport: clientInfo?.transport,
