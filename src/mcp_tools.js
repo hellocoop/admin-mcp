@@ -57,7 +57,7 @@ export function getToolDefinitions() {
           },
           client_id: {
             type: 'string',
-            description: 'ID of the OAuth client/application (required for: read, update, create_secret, upload_logo_file, upload_logo_url)'
+            description: 'ID of the OAuth client/application (optional for read - returns profile if omitted; required for: update, create_secret, upload_logo_file, upload_logo_url)'
           },
           name: {
             type: 'string',
@@ -130,7 +130,7 @@ export function getToolDefinitions() {
               properties: { action: { const: 'read' } }
             },
             then: {
-              required: ['action', 'client_id']
+              required: ['action']
             }
           },
           {
