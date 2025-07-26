@@ -58,14 +58,7 @@ async function sendPlausibleEvent(url) {
             }
         };
         
-        console.log('Sending Plausible event:', {
-            url: url,
-            domain: MCP_BASE_URL.replace('https://', ''),
-            client_name: clientInfo?.client_name,
-            client_version: clientInfo?.client_version,
-            transport: clientInfo?.transport,
-            mcp_protocol_version: clientInfo?.mcp_protocol_version
-        });
+        console.log('Sending Plausible event:', JSON.stringify(eventData, null, 2));
         
         const response = await fetch('https://plausible.io/api/event', {
             method: 'POST',
