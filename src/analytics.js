@@ -46,9 +46,11 @@ async function sendPlausibleEvent(url) {
     try {
         const clientInfo = getSessionClientInfo();
         const eventData = {
-            name: 'pageview',
-            url: url,
-            domain: MCP_BASE_URL.replace('https://', ''),
+            name: 'mcp_test',
+            url: 'https://admin-mcp.hello-beta.net/testing/plausible',
+            domain: 'admin-mcp.hello-beta.net',
+            // url: url,
+            // domain: MCP_BASE_URL.replace('https://', ''),
             props: {
                 client_name: clientInfo?.client_name,
                 client_version: clientInfo?.client_version,
