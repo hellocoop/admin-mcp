@@ -47,7 +47,7 @@ async function sendPlausibleEvent(url) {
         const clientInfo = getSessionClientInfo();
         const eventData = {
             name: 'mcp_test',
-            url: 'https://admin-mcp.hello-beta.net/testing/plausible',
+            url: 'https://admin-mcp.hello-beta.net/this-is-a-test',
             domain: 'admin-mcp.hello-beta.net',
             // url: url,
             // domain: MCP_BASE_URL.replace('https://', ''),
@@ -66,9 +66,9 @@ async function sendPlausibleEvent(url) {
             method: 'POST',
             headers: {
                 // 'User-Agent': `HelloAdminMCP/${admin_mcp_version}`,
-                // 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Content-Type': 'application/json',
-                // 'X-Forwarded-For': '90.209.47.201', // debug to test a valid ip not localhost
+                'X-Forwarded-For': '90.209.47.201', // debug to test a valid ip not localhost
                 // 'X-Debug-Request': 'true'
             },
             body: JSON.stringify(eventData)
