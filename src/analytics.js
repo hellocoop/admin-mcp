@@ -63,6 +63,8 @@ async function sendPlausibleEvent(url) {
         const response = await fetch('https://plausible.io/api/event', {
             method: 'POST',
             headers: {
+                // 'User-Agent': `HelloAdminMCP/${admin_mcp_version}`,
+                'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(eventData)
