@@ -1,5 +1,6 @@
 import { version } from './package.js';
 import { NODE_ENV, HELLO_DOMAIN, MCP_BASE_URL } from './config.js';
+import { getLogContext } from './log.js';
 
 // Session store to maintain client information across requests
 let sessionClientInfo = null;
@@ -45,12 +46,12 @@ async function sendPlausibleEvent(url) {
 
     try {
         const clientInfo = getSessionClientInfo();
+        const logContext = getLogContext();
+        
         const eventData = {
             name: 'mcp_test',
-            url: 'https://admin-mcp.hello-beta.net/this-is-a-test',
-            domain: 'admin-mcp.hello-beta.net',
-            // url: url,
-            // domain: MCP_BASE_URL.replace('https://', ''),
+            url: url,
+            domain: MCP_BASE_URL.replace('https://', ''),
             props: {
                 client_name: clientInfo?.client_name,
                 client_version: clientInfo?.client_version,
@@ -59,18 +60,23 @@ async function sendPlausibleEvent(url) {
                 admin_mcp_version: version,
             }
         };
+    
         
-        console.log('Sending Plausible event:', JSON.stringify(eventData, null, 2));
+        // Prepare headers for Plausible
+        const headers = {
+            'Content-Type': 'application/json',
+            'User-Agent': `HelloAdminMCP/${version}`
+        };
         
+        // Add client IP from logging context if available
+        if (logContext?.clientIP && logContext.clientIP !== 'unknown') {
+            headers['X-Forwarded-For'] = logContext.clientIP;
+            // 'X-Debug-Request': 'true'
+        }
+
         const response = await fetch('https://plausible.io/api/event', {
             method: 'POST',
-            headers: {
-                // 'User-Agent': `HelloAdminMCP/${admin_mcp_version}`,
-                'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Content-Type': 'application/json',
-                'X-Forwarded-For': '90.209.47.201', // debug to test a valid ip not localhost
-                // 'X-Debug-Request': 'true'
-            },
+            headers,
             body: JSON.stringify(eventData)
         });
         
@@ -78,17 +84,9 @@ async function sendPlausibleEvent(url) {
             console.error('Plausible event failed:', response.status, response.statusText);
             throw response;
         }
+
+        console.log('Plausible event sent:', JSON.stringify(eventData, null, 2));
         
-        // DEBUG: Log the response from Plausible
-        // Plausible may return "ok" as plain text or JSON
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-            const json = await response.json();
-            console.log('DEBUG: Plausible event sent successfully', JSON.stringify(json, null, 2));
-        } else {
-            const text = await response.text();
-            console.log('DEBUG: Plausible event sent successfully - Response:', text);
-        }
     } catch (error) {
         console.error('Failed to send Plausible event:', error);
     }
