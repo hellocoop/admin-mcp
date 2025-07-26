@@ -593,7 +593,10 @@ async function uploadLogoBinary(publisherId, applicationId, logoFile, logoFilena
         }
         
         const chunks = [];
-        formData.on('data', chunk => chunks.push(chunk));
+        formData.on('data', chunk => {
+          // Ensure chunk is a Buffer
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
         formData.on('end', async () => {
           try {
             const buffer = Buffer.concat(chunks);
@@ -621,6 +624,9 @@ async function uploadLogoBinary(publisherId, applicationId, logoFile, logoFilena
         formData.on('error', (error) => {
           reject(new Error(`Form data error: ${error.message}`));
         });
+        
+        // Actually start reading the form data to trigger the events
+        formData.resume();
       });
     });
   } catch (error) {
