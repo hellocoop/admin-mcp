@@ -73,7 +73,16 @@ async function sendPlausibleEvent(url) {
             throw response;
         }
         
-        console.log('Plausible event sent successfully');
+        // DEBUG: Log the response from Plausible
+        // Plausible may return "ok" as plain text or JSON
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            const json = await response.json();
+            console.log('DEBUG: Plausible event sent successfully', JSON.stringify(json, null, 2));
+        } else {
+            const text = await response.text();
+            console.log('DEBUG: Plausible event sent successfully - Response:', text);
+        }
     } catch (error) {
         console.error('Failed to send Plausible event:', error);
     }
