@@ -2,6 +2,7 @@
 import { AsyncLocalStorage } from 'async_hooks'
 import jwt from 'jsonwebtoken'
 import identifier from '@hellocoop/identifier'
+import { LOG_LEVEL, IS_DEVELOPMENT } from './config.js'
 
 const asyncLocalStorage = new AsyncLocalStorage()
 
@@ -134,6 +135,13 @@ export const loggingPreHandler = (request, reply, done) => {
 // Separate function for logging requests (similar to Wallet's logRequest)
 export const logRequest = (request, reply, done) => {
   const path = request.routerPath || request.url?.split('?')[0] || 'unknown'
+
+    // Skip health check logging unless in debug mode
+  if (path === '/health' && LOG_LEVEL !== 'debug') {
+    done()
+    return
+  }
+
   request.log.info({
     event: 'http_request',
     method: request.method,
@@ -155,6 +163,13 @@ export const logRequest = (request, reply, done) => {
 
 // Separate function for logging responses (similar to Wallet's logResponse)
 export const logResponse = (request, reply, payload, done) => {
+  const path = request.routerPath || request.url?.split('?')[0] || 'unknown'
+      // Skip health check logging unless in debug mode
+  if (path === '/health' && LOG_LEVEL !== 'debug') {
+    done()
+    return
+  }
+
   let duration_ms = 'unknown'
   if (request.hrStartTime) {
     const diff = process.hrtime(request.hrStartTime)
@@ -257,8 +272,6 @@ export const apiLogError = ({ event, startTime, message, extra = {} }) => {
 } 
 
 // Fastify logging configuration (similar to Wallet server)
-import { LOG_LEVEL, IS_DEVELOPMENT } from './config.js';
-
 export const logOptions = {
   disableRequestLogging: true, // Disable automatic request logging
   logger: {
