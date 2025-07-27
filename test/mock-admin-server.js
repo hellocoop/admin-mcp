@@ -7,6 +7,8 @@ import fastify from 'fastify';
 import multipart from '@fastify/multipart';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 
 const PORT = process.env.MOCK_ADMIN_PORT || 3333;
 const HOST = process.env.MOCK_ADMIN_HOST || '0.0.0.0';
@@ -271,8 +273,11 @@ async function authenticate(request, reply) {
 
 // Add authentication hook for protected routes
 app.addHook('preHandler', async (request, reply) => {
-  // Skip auth for health and token endpoints
-  if (request.url === '/health' || request.url === '/token' || request.url.startsWith('/token/')) {
+  // Skip auth for health, token, and test asset endpoints
+  if (request.url === '/health' || 
+      request.url === '/token' || 
+      request.url.startsWith('/token/') ||
+      request.url.startsWith('/test-assets/')) {
     return;
   }
   
@@ -575,6 +580,22 @@ app.post('/api/v1/publishers/:publisherId/applications/:applicationId/logo', asy
     image_uri: logoUrl,
     message: 'Logo uploaded successfully'
   };
+});
+
+// Static file endpoint for testing logo URL fetching
+app.get('/test-assets/playground-logo.png', async (request, reply) => {
+  try {
+    // In Docker, we're in /usr/src/mcp, so test files are in ./test/
+    const logoPath = path.join(process.cwd(), 'test', 'playground-logo.png');
+    const logoBuffer = fs.readFileSync(logoPath);
+    
+    reply.type('image/png');
+    return logoBuffer;
+  } catch (error) {
+    console.error('Error serving playground logo:', error);
+    console.error('Tried path:', path.join(process.cwd(), 'test', 'playground-logo.png'));
+    return reply.code(404).send({ error: 'Logo file not found' });
+  }
 });
 
 // Start server

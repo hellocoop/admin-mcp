@@ -255,22 +255,21 @@ class MCPIntegrationTester {
           image_url: 'https://www.hello.dev/images/hello-logo.svg'
         }, 'Test logo URL accessibility');
 
-        // Test logo upload from URL
+        // Test logo update from URL
         await this.testTool('hello_manage_app', {
-          action: 'upload_logo_url',
+          action: 'update_logo_from_url',
           client_id: application.application.client_id,
-          logo_url: 'https://www.hello.dev/images/hello-logo.svg',
-          logo_content_type: 'image/svg+xml'
-        }, 'Upload logo from URL');
+          logo_url: 'http://mock-admin:3333/test-assets/playground-logo.png'
+        }, 'Update logo from URL');
 
         // Test logo upload from base64 data (small test image)
         const testImageBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='; // 1x1 transparent PNG
         await this.testTool('hello_manage_app', {
-          action: 'upload_logo_file',
+          action: 'update_logo_from_data',
           client_id: application.application.client_id,
-          logo_file: testImageBase64,
+          logo_data: testImageBase64,
           logo_content_type: 'image/png'
-        }, 'Upload logo from base64');
+        }, 'Update logo from base64');
 
         // Test secret creation
         const secretHash = crypto.createHash('sha256').update('test-secret-123').digest('hex');

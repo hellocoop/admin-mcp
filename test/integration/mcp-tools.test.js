@@ -1,4 +1,10 @@
 import { expect } from 'chai';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 describe('MCP Integration Tests', function() {
   const MCP_SERVER_URL = process.env.MCP_SERVER_URL || 'http://localhost:3000';
@@ -361,8 +367,8 @@ describe('MCP Integration Tests', function() {
       });
     });
 
-    describe('upload_logo_url action', function() {
-      it('should upload logo from URL', async function() {
+    describe('update_logo_from_url action', function() {
+      it('should update logo from URL', async function() {
         // Ensure we have a test app
         if (!testClientId) {
           const createResponse = await callTool('hello_manage_app', {
@@ -377,10 +383,9 @@ describe('MCP Integration Tests', function() {
         }
         
         const response = await callTool('hello_manage_app', {
-          action: 'upload_logo_url',
+          action: 'update_logo_from_url',
           client_id: testClientId,
-          logo_url: 'https://www.hello.dev/images/hello-logo.svg',
-          logo_content_type: 'image/svg+xml'
+          logo_url: 'http://mock-admin:3333/test-assets/playground-logo.png'
         }, validToken);
         
         expect(response.status).to.equal(200);
@@ -397,7 +402,7 @@ describe('MCP Integration Tests', function() {
         // Validate action_result
         expect(content).to.have.property('action_result');
         expect(content.action_result).to.have.property('success', true);
-        expect(content.action_result).to.have.property('action', 'upload_logo_url');
+        expect(content.action_result).to.have.property('action', 'update_logo_from_url');
         expect(content.action_result).to.have.property('logo_url');
         expect(content.action_result.logo_url).to.equal(content.upload_result.image_uri);
         
@@ -408,7 +413,7 @@ describe('MCP Integration Tests', function() {
 
       it('should handle error for invalid app ID', async function() {
         const response = await callTool('hello_manage_app', {
-          action: 'upload_logo_url',
+          action: 'update_logo_from_url',
           client_id: 'invalid-app-id',
           logo_url: 'https://example.com/logo.png',
           logo_content_type: 'image/png'
@@ -419,8 +424,8 @@ describe('MCP Integration Tests', function() {
       });
     });
 
-    describe('upload_logo_file action', function() {
-      it('should upload logo from file data', async function() {
+    describe('update_logo_from_data action', function() {
+              it('should update logo from data', async function() {
         // Ensure we have a test app
         if (!testClientId) {
           const createResponse = await callTool('hello_manage_app', {
@@ -434,13 +439,15 @@ describe('MCP Integration Tests', function() {
           testClientId = createContent.application.id;
         }
         
-        // Small 1x1 transparent PNG in base64
-        const testImage = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+        // Read the playground logo file and convert to base64
+        const logoPath = path.join(__dirname, '..', 'playground-logo.png');
+        const logoBuffer = fs.readFileSync(logoPath);
+        const testImage = logoBuffer.toString('base64');
         
         const response = await callTool('hello_manage_app', {
-          action: 'upload_logo_file',
+          action: 'update_logo_from_data',
           client_id: testClientId,
-          logo_file: testImage,
+          logo_data: testImage,
           logo_content_type: 'image/png'
         }, validToken);
         
@@ -462,7 +469,7 @@ describe('MCP Integration Tests', function() {
         // Validate action_result
         expect(content).to.have.property('action_result');
         expect(content.action_result).to.have.property('success', true);
-        expect(content.action_result).to.have.property('action', 'upload_logo_file');
+        expect(content.action_result).to.have.property('action', 'update_logo_from_data');
         expect(content.action_result).to.have.property('logo_url');
         expect(content.action_result.logo_url).to.equal(content.upload_result.image_uri);
         
@@ -486,13 +493,15 @@ describe('MCP Integration Tests', function() {
         const createContent = parseMCPContent(createResponse);
         const svgTestClientId = createContent.application.id;
         
-        // SVG file that was failing in production - Dick Hardt's App logo
-        const testSvgImage = 'PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDQwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgPHJlY3Qgd2lkdGg9IjQwMCIgaGVpZ2h0PSIxMDAiIGZpbGw9IiMxQTczRTgiLz4KICA8dGV4dCB4PSI1MCIgeT0iNjUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgSGVsdmV0aWNhLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjQ4IiBmaWxsPSIjRkZGRkZGIiBmb250LXdlaWdodD0iYm9sZCI+RGljayBIYXJkdCdzIEFwcDwvdGV4dD4KPC9zdmc+Cg==';
+        // Read the test SVG file and convert to base64
+        const svgPath = path.join(__dirname, '..', 'test_logo.svg');
+        const svgBuffer = fs.readFileSync(svgPath);
+        const testSvgImage = svgBuffer.toString('base64');
         
         const response = await callTool('hello_manage_app', {
-          action: 'upload_logo_file',
+          action: 'update_logo_from_data',
           client_id: svgTestClientId,
-          logo_file: testSvgImage,
+          logo_data: testSvgImage,
           logo_content_type: 'image/svg+xml',
           theme: 'dark'
         }, validToken);
@@ -515,8 +524,8 @@ describe('MCP Integration Tests', function() {
         // Validate action_result
         expect(content).to.have.property('action_result');
         expect(content.action_result).to.have.property('success', true);
-        expect(content.action_result).to.have.property('action', 'upload_logo_file');
-        expect(content.action_result).to.have.property('message').that.includes('Logo uploaded successfully');
+        expect(content.action_result).to.have.property('action', 'update_logo_from_data');
+        expect(content.action_result).to.have.property('message').that.includes('Logo updated successfully');
         expect(content.action_result).to.have.property('logo_url', content.upload_result.image_uri);
         
         // Validate application was updated with dark theme logo
