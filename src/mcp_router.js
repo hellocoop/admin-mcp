@@ -138,6 +138,11 @@ export class MCPRouter {
           throw error;
         }
         
+        if (error.code && error.data) {
+          // Custom JSON-RPC errors - preserve the code and data
+          throw error;
+        }
+        
         // For other errors, provide a more descriptive message
         const errorMessage = error.message || 'Unknown error occurred';
         throw new Error(`Tool '${name}' failed: ${errorMessage}`);
@@ -289,13 +294,26 @@ export class MCPRouter {
           };
       }
     } catch (error) {
+      console.log('🚨 MCP Router caught error:', error.message);
+      console.log('🚨 Error code:', error.code);
+      console.log('🚨 Error data:', error.data);
+      console.log('🚨 Full error:', error);
+      
+      // Check if error has custom JSON-RPC properties
+      const errorCode = error.code || -32000;
+      const errorMessage = error.code === -32602 ? 'Invalid params' :
+                          error.code === -32601 ? 'Method not found' :
+                          error.code === -32001 ? 'Authentication required' :
+                          'Internal error';
+      const errorData = error.data || error.message;
+      
       return {
         jsonrpc: '2.0',
         id,
         error: {
-          code: -32000,
-          message: 'Internal error',
-          data: error.message
+          code: errorCode,
+          message: errorMessage,
+          data: errorData
         }
       };
     }

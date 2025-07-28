@@ -108,6 +108,9 @@ const mockData = {
   }
 };
 
+// Storage for uploaded logo data (for testing validation)
+const uploadedLogos = {};
+
 // Create Fastify instance
 const app = fastify({
   logger: {
@@ -277,7 +280,8 @@ app.addHook('preHandler', async (request, reply) => {
   if (request.url === '/health' || 
       request.url === '/token' || 
       request.url.startsWith('/token/') ||
-      request.url.startsWith('/test-assets/')) {
+      request.url.startsWith('/test-assets/') ||
+      request.url.startsWith('/test-data/')) {
     return;
   }
   
@@ -572,14 +576,46 @@ app.post('/api/v1/publishers/:publisherId/applications/:applicationId/logo', asy
   console.log(`📁 Mock Admin Server: Logo upload request received for ${applicationId}`);
   console.log(`   Content-Type: ${request.headers['content-type']}`);
   
-  // Simple mock response - just return success with a generic logo URL
-  // The admin server doesn't need to validate file types, that's handled by the MCP server
-  const logoUrl = `https://mock-cdn.hello.coop/logos/${applicationId}-${Date.now()}.png`;
-  
-  return {
-    image_uri: logoUrl,
-    message: 'Logo uploaded successfully'
-  };
+  try {
+    // Handle multipart form data upload
+    const data = await request.file();
+    
+    if (!data) {
+      return reply.code(400).send({ error: 'No file uploaded' });
+    }
+    
+    // Read the uploaded file data
+    const chunks = [];
+    for await (const chunk of data.file) {
+      chunks.push(chunk);
+    }
+    const fileBuffer = Buffer.concat(chunks);
+    const uploadedData = {
+      filename: data.filename,
+      mimetype: data.mimetype,
+      size: fileBuffer.length,
+      data: fileBuffer.toString('base64'),
+      uploadedAt: new Date().toISOString(),
+      contentType: request.headers['content-type']
+    };
+    
+    // Store the uploaded data for test verification
+    uploadedLogos[applicationId] = uploadedData;
+    
+    console.log(`   File uploaded: ${data.filename} (${data.mimetype}, ${fileBuffer.length} bytes)`);
+    console.log(`   Stored data for application: ${applicationId}`);
+    
+    // Return success with a generic logo URL
+    const logoUrl = `https://mock-cdn.hello.coop/logos/${applicationId}-${Date.now()}.png`;
+    
+    return {
+      image_uri: logoUrl,
+      message: 'Logo uploaded successfully'
+    };
+  } catch (error) {
+    console.error('Error processing logo upload:', error);
+    return reply.code(500).send({ error: 'Failed to process logo upload' });
+  }
 });
 
 // Static file endpoint for testing logo URL fetching
@@ -596,6 +632,20 @@ app.get('/test-assets/playground-logo.png', async (request, reply) => {
     console.error('Tried path:', path.join(process.cwd(), 'test', 'playground-logo.png'));
     return reply.code(404).send({ error: 'Logo file not found' });
   }
+});
+
+// Test endpoint to retrieve uploaded logo data for validation (no auth required)
+app.get('/test-data/uploaded-logo/:applicationId', { preHandler: [] }, async (request, reply) => {
+  const { applicationId } = request.params;
+  
+  if (!uploadedLogos[applicationId]) {
+    return reply.code(404).send({ error: 'No uploaded logo data found for this application' });
+  }
+  
+  return {
+    applicationId,
+    uploadedData: uploadedLogos[applicationId]
+  };
 });
 
 // Start server

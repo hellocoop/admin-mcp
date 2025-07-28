@@ -250,8 +250,26 @@ async function getProfileWithTeamContext(apiClient) {
  * @returns {Promise<Object>} - Tool execution result with profile data
  */
 async function handleManageApp(args, apiClient) {
+  console.log('🔧 handleManageApp called with args:', JSON.stringify(args, null, 2));
   const { action, client_id, team_id, name, tos_uri, pp_uri, image_uri, dev_localhost, dev_127_0_0_1, dev_wildcard, dev_redirect_uris, prod_redirect_uris, device_code, logo_data, logo_content_type, logo_url, theme } = args;
+  console.log(`🔧 Extracted action: "${action}"`);
   
+  // FIRST: Validate action parameter before doing any API calls
+  const validActions = ['create', 'read', 'update', 'create_secret', 'update_logo_from_data', 'update_logo_from_url'];
+  if (!validActions.includes(action)) {
+    console.log(`❌ Unknown action received: "${action}"`);
+    console.log(`   Supported actions: ${validActions.join(', ')}`);
+    
+    // Create a proper JSON-RPC error for invalid parameters
+    const error = new Error(`Invalid action parameter: "${action}"`);
+    error.code = -32602; // Invalid params
+    error.data = {
+      received_action: action,
+      supported_actions: validActions,
+      message: `The action "${action}" is not supported. Please use one of the supported actions.`
+    };
+    throw error;
+  }
   
   // Get current profile, team, and application data 
   const profile = await getProfileWithTeamContext(apiClient);
@@ -302,6 +320,7 @@ async function handleManageApp(args, apiClient) {
   // For all other actions, get team ID (use provided or create default)
   const resolvedTeamId = team_id || await getOrCreateDefaultTeam(apiClient, profile);
   
+  console.log(`🔧 Entering switch statement with action: "${action}"`);
   switch (action) {
     case 'create': {
       sendPlausibleEvent('/tools/call/hello_manage_app/create');
@@ -419,6 +438,12 @@ async function handleManageApp(args, apiClient) {
     }
     
     case 'update_logo_from_data': {
+      console.log('🔧 Starting update_logo_from_data action');
+      console.log(`   client_id: ${client_id}`);
+      console.log(`   logo_content_type: ${logo_content_type}`);
+      console.log(`   logo_data length: ${logo_data ? logo_data.length : 'undefined'}`);
+      console.log(`   theme: ${theme}`);
+      
       sendPlausibleEvent('/tools/call/hello_manage_app/update_logo_from_data');
       if (!client_id) throw new Error('Client ID is required for update_logo_from_data action');
       if (!logo_data || !logo_content_type) {
@@ -426,28 +451,55 @@ async function handleManageApp(args, apiClient) {
       }
       
       // Validate mime type
+      console.log('🔧 Validating MIME type...');
       const mimeValidation = validateMimeType(logo_content_type);
       if (!mimeValidation.valid) {
+        console.log(`❌ MIME type validation failed: ${mimeValidation.error}`);
         throw new Error(mimeValidation.error);
       }
+      console.log('✅ MIME type validation passed');
             
       // Upload the logo using multipart form data
+      console.log('🔧 Starting logo upload...');
       const uploadResult = await uploadLogoBinary(resolvedTeamId, client_id, logo_data, logo_content_type, apiClient);
+      console.log('✅ Logo upload completed:', uploadResult);
       
       // Determine which logo field to update based on theme
       const logoTheme = theme || 'light';
+      console.log(`🔧 Logo theme: ${logoTheme}`);
       
       // Get current application state
-      const currentApp = await apiClient.callAdminAPI('GET', `/api/v1/publishers/${resolvedTeamId}/applications/${client_id}`);
+      console.log('🔧 Fetching current application state...');
+      let currentApp;
+      try {
+        currentApp = await apiClient.callAdminAPI('GET', `/api/v1/publishers/${resolvedTeamId}/applications/${client_id}`);
+        console.log('✅ Current application fetched');
+      } catch (error) {
+        if (error.message.includes('Resource not found')) {
+          const friendlyError = new Error(`Application not found: The client_id "${client_id}" does not exist or you don't have permission to access it.`);
+          friendlyError.code = -32602; // Invalid params
+          friendlyError.data = {
+            error_type: 'invalid_client_id',
+            client_id: client_id,
+            message: `The application with client_id "${client_id}" was not found. Please check that the client_id is correct and that you have permission to access this application.`
+          };
+          throw friendlyError;
+        }
+        throw error; // Re-throw other errors as-is
+      }
       
       // Update the application with the new logo URL in the appropriate field
+      const logoField = logoTheme === 'light' ? 'image_uri' : 'dark_image_uri';
+      console.log(`🔧 Updating ${logoField} with: ${uploadResult.image_uri}`);
       const updateData = {
         ...currentApp,
-        [logoTheme === 'light' ? 'image_uri' : 'dark_image_uri']: uploadResult.image_uri
+        [logoField]: uploadResult.image_uri
       };
       
             // Update the application
+      console.log('🔧 Updating application...');
       const updatedApp = await apiClient.callAdminAPI('PUT', `/api/v1/publishers/${resolvedTeamId}/applications/${client_id}`, updateData);
+      console.log('✅ Application updated successfully');
       
       // Generate a simple filename for test expectations
       const extension = logo_content_type === 'image/svg+xml' ? 'svg' : 
@@ -455,7 +507,8 @@ async function handleManageApp(args, apiClient) {
                         logo_content_type === 'image/jpeg' ? 'jpg' : 'png';
       const generatedFilename = `logo_${Date.now()}.${extension}`;
 
-      return {
+      console.log('🔧 Preparing response...');
+      const response = {
         profile,
         application: flattenApp(updatedApp),
         upload_result: {
@@ -471,6 +524,8 @@ async function handleManageApp(args, apiClient) {
             theme: logoTheme
           }
         };
+      console.log('✅ update_logo_from_data completed successfully');
+      return response;
     }
     
     case 'update_logo_from_url': {
@@ -545,7 +600,8 @@ async function handleManageApp(args, apiClient) {
     }
     
     default: {
-      throw new Error(`Unknown action: ${action}. Supported actions: create, read, update, create_secret, update_logo_from_data, update_logo_from_url`);
+      // This should never be reached since we validate actions upfront
+      throw new Error(`Unexpected action in switch: ${action}`);
     }
   }
 }

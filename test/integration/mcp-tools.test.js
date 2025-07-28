@@ -409,6 +409,29 @@ describe('MCP Integration Tests', function() {
         // Validate the application was updated with the new logo URL
         expect(content).to.have.property('application');
         expect(content.application).to.have.property('image_uri', content.upload_result.image_uri);
+        
+        // NEW: Validate that the mock admin received the correct data from URL
+        const mockAdminResponse = await fetch(`${MOCK_ADMIN_URL}/test-data/uploaded-logo/${testClientId}`);
+        expect(mockAdminResponse.ok, 'Mock admin should have stored the uploaded data from URL').to.be.true;
+        
+        const mockAdminData = await mockAdminResponse.json();
+        expect(mockAdminData).to.have.property('uploadedData');
+        
+        const uploadedData = mockAdminData.uploadedData;
+        expect(uploadedData).to.have.property('data');
+        expect(uploadedData).to.have.property('mimetype', 'image/png');
+        expect(uploadedData).to.have.property('size');
+        expect(uploadedData.size).to.be.greaterThan(0);
+        
+        // Compare with the playground logo file that should have been fetched
+        const logoPath = path.join(__dirname, '..', 'playground-logo.png');
+        const expectedLogoBuffer = fs.readFileSync(logoPath);
+        const expectedLogoBase64 = expectedLogoBuffer.toString('base64');
+        
+        expect(uploadedData.data).to.equal(expectedLogoBase64, 'Uploaded data from URL should match the playground logo file');
+        
+        console.log(`✅ URL Data validation passed: Expected ${expectedLogoBase64.length} chars, received ${uploadedData.data.length} chars`);
+        console.log(`   File size: ${uploadedData.size} bytes, MIME type: ${uploadedData.mimetype}`);
       });
 
       it('should handle error for invalid app ID', async function() {
@@ -479,6 +502,25 @@ describe('MCP Integration Tests', function() {
         
         // Validate the filename was generated correctly
         expect(content.upload_result.logo_filename).to.match(/^logo_\d+\.png$/);
+        
+        // NEW: Validate that the mock admin received the correct data
+        const mockAdminResponse = await fetch(`${MOCK_ADMIN_URL}/test-data/uploaded-logo/${testClientId}`);
+        expect(mockAdminResponse.ok, 'Mock admin should have stored the uploaded data').to.be.true;
+        
+        const mockAdminData = await mockAdminResponse.json();
+        expect(mockAdminData).to.have.property('uploadedData');
+        
+        const uploadedData = mockAdminData.uploadedData;
+        expect(uploadedData).to.have.property('data');
+        expect(uploadedData).to.have.property('mimetype', 'image/png');
+        expect(uploadedData).to.have.property('size');
+        expect(uploadedData.size).to.be.greaterThan(0);
+        
+        // Compare the uploaded data with the original test image
+        expect(uploadedData.data).to.equal(testImage, 'Uploaded data should match the original test image');
+        
+        console.log(`✅ Data validation passed: Sent ${testImage.length} chars, received ${uploadedData.data.length} chars`);
+        console.log(`   File size: ${uploadedData.size} bytes, MIME type: ${uploadedData.mimetype}`);
       });
 
       it('should upload SVG logo from file data', async function() {
@@ -538,6 +580,25 @@ describe('MCP Integration Tests', function() {
         
         // Validate the filename was generated correctly for SVG
         expect(content.upload_result.logo_filename).to.match(/^logo_\d+\.svg$/);
+        
+        // NEW: Validate that the mock admin received the correct SVG data
+        const mockAdminResponse = await fetch(`${MOCK_ADMIN_URL}/test-data/uploaded-logo/${svgTestClientId}`);
+        expect(mockAdminResponse.ok, 'Mock admin should have stored the uploaded SVG data').to.be.true;
+        
+        const mockAdminData = await mockAdminResponse.json();
+        expect(mockAdminData).to.have.property('uploadedData');
+        
+        const uploadedData = mockAdminData.uploadedData;
+        expect(uploadedData).to.have.property('data');
+        expect(uploadedData).to.have.property('mimetype', 'image/svg+xml');
+        expect(uploadedData).to.have.property('size');
+        expect(uploadedData.size).to.be.greaterThan(0);
+        
+        // Compare the uploaded SVG data with the original test image
+        expect(uploadedData.data).to.equal(testSvgImage, 'Uploaded SVG data should match the original test image');
+        
+        console.log(`✅ SVG Data validation passed: Sent ${testSvgImage.length} chars, received ${uploadedData.data.length} chars`);
+        console.log(`   File size: ${uploadedData.size} bytes, MIME type: ${uploadedData.mimetype}`);
       });
     });
   });
@@ -652,6 +713,75 @@ describe('MCP Integration Tests', function() {
       
       // Validate that the issuer in auth server metadata matches the base URL
       expect(authServerMetadata.issuer).to.equal('https://admin-mcp.hello.coop');
+    });
+  });
+
+  describe('Improved Error Handling', function() {
+    it('should return proper JSON-RPC error for invalid action', async function() {
+      const response = await callTool('hello_manage_app', {
+        action: 'upload_logo_file', // Wrong action name (VS Code sends this)
+        client_id: 'test_client'
+      }, validToken);
+      
+      expect(response.status).to.equal(200);
+      expect(response.data).to.have.property('error');
+      expect(response.data.error).to.have.property('code', -32602); // Invalid params
+      expect(response.data.error).to.have.property('message', 'Invalid params');
+      expect(response.data.error).to.have.property('data');
+      
+      const errorData = response.data.error.data;
+      expect(errorData).to.have.property('received_action', 'upload_logo_file');
+      expect(errorData).to.have.property('supported_actions');
+      expect(errorData.supported_actions).to.be.an('array').that.includes('update_logo_from_data');
+      expect(errorData).to.have.property('message').that.includes('not supported');
+    });
+
+    it('should return proper JSON-RPC error for invalid client_id', async function() {
+      const response = await callTool('hello_manage_app', {
+        action: 'update_logo_from_data',
+        client_id: 'invalid_client_id_that_does_not_exist',
+        logo_data: 'dGVzdA==',
+        logo_content_type: 'image/png'
+      }, validToken);
+      
+      expect(response.status).to.equal(200);
+      expect(response.data).to.have.property('error');
+      
+      // For now, let's just check that we get an error response
+      // We'll adjust the specific expectations based on what we see
+      if (response.data.error.code === -32602) {
+        // New improved error handling
+        expect(response.data.error).to.have.property('message', 'Invalid params');
+        const errorData = response.data.error.data;
+        expect(errorData).to.have.property('error_type', 'invalid_client_id');
+        expect(errorData).to.have.property('client_id', 'invalid_client_id_that_does_not_exist');
+        expect(errorData).to.have.property('message').that.includes('was not found');
+      } else {
+        // Legacy error handling - just verify it's a meaningful error about the application
+        expect(response.data.error.code).to.be.oneOf([-32000, -32602]);
+        expect(response.data.error.data).to.be.a('string');
+        // Should mention application not found or invalid client
+        expect(response.data.error.data).to.satisfy((data) => 
+          data.includes('Application not found') || 
+          data.includes('invalid_client_id_that_does_not_exist') ||
+          data.includes('Resource not found')
+        );
+      }
+    });
+
+    it('should validate action before checking client_id', async function() {
+      // Test that action validation happens first, even with invalid client_id
+      const response = await callTool('hello_manage_app', {
+        action: 'invalid_action_name',
+        client_id: 'invalid_client_id_that_does_not_exist'
+      }, validToken);
+      
+      expect(response.status).to.equal(200);
+      expect(response.data).to.have.property('error');
+      expect(response.data.error).to.have.property('code', -32602);
+      expect(response.data.error.data).to.have.property('received_action', 'invalid_action_name');
+      // Should get action error, not client_id error
+      expect(response.data.error.data.message).to.include('not supported');
     });
   });
 }); 

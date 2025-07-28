@@ -237,6 +237,44 @@ class MCPHttpServer {
         };
         const response = await this.mcpServer.handleRequest(mcpRequest);
         
+        // Log the response for debugging
+        const logData = {
+          event: 'mcp_response',
+          method: method,
+          responseType: response.error ? 'error' : 'success',
+          responseSize: JSON.stringify(response).length,
+          hasResult: !!response.result,
+          hasError: !!response.error,
+        };
+
+        // Add error details if present
+        if (response.error) {
+          logData.errorCode = response.error.code;
+          logData.errorMessage = response.error.message;
+          logData.errorData = response.error.data;
+        }
+
+        // Add result summary for successful responses
+        if (response.result) {
+          if (method === 'tools/list') {
+            logData.toolCount = response.result.tools?.length || 0;
+            logData.toolNames = response.result.tools?.map(t => t.name) || [];
+          } else if (method === 'resources/list') {
+            logData.resourceCount = response.result.resources?.length || 0;
+          } else if (method === 'tools/call') {
+            logData.toolName = request.body?.params?.name;
+            logData.toolAction = request.body?.params?.arguments?.action;
+          }
+        }
+
+        request.log.info(logData, 'MCP response generated');
+        
+        // Also log the full response content for debugging as a parsed object
+        request.log.info({
+          event: 'mcp_response_content',
+          responseContent: response
+        }, '📋 MCP Response Content');
+        
         return response;
       } catch (error) {
         request.log.error({
@@ -271,11 +309,19 @@ class MCPHttpServer {
           });
         }
         
-        // Determine appropriate error code based on error type
-        let errorCode = -32603; // Internal error (default)
+        // Check if error has custom JSON-RPC properties
+        let errorCode = error.code || -32603; // Use custom code or default to Internal error
         let errorMessage = 'Internal error';
+        let errorData = error.data || error.message;
         
-        if (error.message.includes('Authentication')) {
+        // Determine appropriate error message based on code or error type
+        if (error.code === -32602) {
+          errorMessage = 'Invalid params';
+        } else if (error.code === -32601) {
+          errorMessage = 'Method not found';
+        } else if (error.code === -32001) {
+          errorMessage = 'Authentication required';
+        } else if (error.message.includes('Authentication')) {
           errorCode = -32001;
           errorMessage = 'Authentication required';
         } else if (error.message.includes('Unknown tool:')) {
@@ -294,7 +340,7 @@ class MCPHttpServer {
           error: {
             code: errorCode,
             message: errorMessage,
-            data: error.message
+            data: errorData
           },
           id: request.body?.id || null
         });
