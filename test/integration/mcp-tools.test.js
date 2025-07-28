@@ -373,6 +373,307 @@ describe('MCP Integration Tests', function() {
         expect(content.application).to.have.property('name', 'Updated Test App');
         expect(content.application).to.have.property('tos_uri', 'https://example.com/updated-tos');
       });
+
+      it('should validate redirect URIs and prevent production URI deletion', async function() {
+        // Create a test app with initial production redirect URIs
+        const createResponse = await callTool('hello_manage_app', {
+          action: 'create',
+          name: 'Redirect URI Test App',
+          prod_redirect_uris: [
+            'https://example.com/callback',
+            'https://app.example.com/auth',
+            'vscode://hellocoop.auth/callback'
+          ],
+          dev_redirect_uris: [
+            'http://localhost:3000/callback',
+            'https://dev.example.com/callback'
+          ]
+        }, validToken);
+        
+        expect(createResponse.status).to.equal(200);
+        const createContent = parseMCPContent(createResponse);
+        const appId = createContent.application.id;
+        
+        // Verify initial URIs were set correctly (using flattened properties)
+        expect(createContent.application.prod_redirect_uris).to.deep.include.members([
+          'https://example.com/callback',
+          'https://app.example.com/auth',
+          'vscode://hellocoop.auth/callback'
+        ]);
+        expect(createContent.application.dev_redirect_uris).to.deep.include.members([
+          'http://localhost:3000/callback',
+          'https://dev.example.com/callback'
+        ]);
+        
+        // Update with new production URIs - should create superset (not replace)
+        const updateResponse = await callTool('hello_manage_app', {
+          action: 'update',
+          client_id: appId,
+          prod_redirect_uris: [
+            'https://newapp.example.com/callback',  // New valid HTTPS URI
+            'myapp://auth/callback'                 // New valid custom scheme
+          ],
+          dev_redirect_uris: [
+            'http://localhost:4000/callback'        // Replace dev URIs (allowed)
+          ]
+        }, validToken);
+        
+        expect(updateResponse.status).to.equal(200);
+        const updateContent = parseMCPContent(updateResponse);
+        
+        // Production URIs should be a superset (old + new)
+        const prodUris = updateContent.application.prod_redirect_uris;
+        expect(prodUris).to.include('https://example.com/callback');           // Original
+        expect(prodUris).to.include('https://app.example.com/auth');           // Original  
+        expect(prodUris).to.include('vscode://hellocoop.auth/callback');       // Original
+        expect(prodUris).to.include('https://newapp.example.com/callback');    // New
+        expect(prodUris).to.include('myapp://auth/callback');                  // New
+        expect(prodUris).to.have.length(5);
+        
+        // Development URIs should be replaced (not merged)
+        const devUris = updateContent.application.dev_redirect_uris;
+        expect(devUris).to.deep.equal(['http://localhost:4000/callback']);
+      });
+
+      it('should reject invalid production redirect URIs', async function() {
+        // Create a test app
+        const createResponse = await callTool('hello_manage_app', {
+          action: 'create',
+          name: 'Invalid URI Test App',
+          prod_redirect_uris: ['https://valid.example.com/callback']
+        }, validToken);
+        
+        expect(createResponse.status).to.equal(200);
+        const createContent = parseMCPContent(createResponse);
+        const appId = createContent.application.id;
+        
+        // Try to update with invalid production URIs
+        const updateResponse = await callTool('hello_manage_app', {
+          action: 'update',
+          client_id: appId,
+          prod_redirect_uris: [
+            'http://insecure.example.com/callback',     // Invalid: HTTP in production
+            'ftp://files.example.com/callback',         // Invalid: unsupported scheme
+            'https://newvalid.example.com/callback',    // Valid: HTTPS
+            'customapp://auth/callback'                 // Valid: custom scheme
+          ]
+        }, validToken);
+        
+        expect(updateResponse.status).to.equal(200);
+        const updateContent = parseMCPContent(updateResponse);
+        
+        // Should only keep valid URIs (original + valid new ones)
+        const prodUris = updateContent.application.prod_redirect_uris;
+        expect(prodUris).to.include('https://valid.example.com/callback');     // Original
+        expect(prodUris).to.include('https://newvalid.example.com/callback');  // Valid new
+        expect(prodUris).to.include('customapp://auth/callback');              // Valid custom scheme
+        expect(prodUris).to.not.include('http://insecure.example.com/callback'); // Invalid HTTP
+        expect(prodUris).to.not.include('ftp://files.example.com/callback');   // Invalid scheme
+      });
+
+      it('should allow HTTP and other schemes in development', async function() {
+        // Create a test app
+        const createResponse = await callTool('hello_manage_app', {
+          action: 'create',
+          name: 'Dev URI Test App',
+          dev_redirect_uris: [
+            'http://localhost:3000/callback',
+            'https://dev.example.com/callback'
+          ]
+        }, validToken);
+        
+        expect(createResponse.status).to.equal(200);
+        const createContent = parseMCPContent(createResponse);
+        const appId = createContent.application.id;
+        
+        // Update with various development URIs (should allow more flexibility)
+        const updateResponse = await callTool('hello_manage_app', {
+          action: 'update',
+          client_id: appId,
+          dev_redirect_uris: [
+            'http://localhost:4000/callback',          // HTTP is OK in dev
+            'https://staging.example.com/callback',    // HTTPS is OK
+            'devapp://test/callback',                  // Custom schemes OK
+            'http://192.168.1.100:3000/callback'      // Local IP OK in dev
+          ]
+        }, validToken);
+        
+        expect(updateResponse.status).to.equal(200);
+        const updateContent = parseMCPContent(updateResponse);
+        
+        // All URIs should be accepted in development
+        const devUris = updateContent.application.dev_redirect_uris;
+        expect(devUris).to.include('http://localhost:4000/callback');
+        expect(devUris).to.include('https://staging.example.com/callback');
+        expect(devUris).to.include('devapp://test/callback');
+        expect(devUris).to.include('http://192.168.1.100:3000/callback');
+      });
+
+      it('should reject completely invalid URLs', async function() {
+        // Create a test app
+        const createResponse = await callTool('hello_manage_app', {
+          action: 'create',
+          name: 'Invalid URL Test App',
+          prod_redirect_uris: ['https://valid.example.com/callback']
+        }, validToken);
+        
+        expect(createResponse.status).to.equal(200);
+        const createContent = parseMCPContent(createResponse);
+        const appId = createContent.application.id;
+        
+        // Try to update with completely invalid URLs
+        const updateResponse = await callTool('hello_manage_app', {
+          action: 'update',
+          client_id: appId,
+          prod_redirect_uris: [
+            'not-a-url-at-all',                     // Invalid: not a URL
+            'http://insecure.example.com/callback', // Invalid: HTTP in production
+            'https://valid.example.com/new',        // Valid: should be added
+            'just-text-no-protocol',                // Invalid: no protocol
+            '',                                     // Invalid: empty string
+            'https://another-valid.com/callback',   // Valid: should be added
+            'customscheme://valid/path'             // Valid: custom scheme should be allowed
+          ],
+          dev_redirect_uris: [
+            'not-a-dev-url',                        // Invalid: should be filtered
+            'http://localhost:3000/callback',       // Valid: should be added
+            'just plain text',                      // Invalid: not a URL at all
+            'https://dev.example.com/callback',     // Valid: should be added
+            'anycustom://anything/goes'             // Valid: custom schemes allowed
+          ]
+        }, validToken);
+        
+        expect(updateResponse.status).to.equal(200);
+        const updateContent = parseMCPContent(updateResponse);
+        
+        // Production URIs should only contain valid ones (original + valid new)
+        const prodUris = updateContent.application.prod_redirect_uris;
+        expect(prodUris).to.include('https://valid.example.com/callback');    // Original
+        expect(prodUris).to.include('https://valid.example.com/new');         // Valid new
+        expect(prodUris).to.include('https://another-valid.com/callback');    // Valid new
+        expect(prodUris).to.include('customscheme://valid/path');             // Valid custom scheme
+        expect(prodUris).to.not.include('not-a-url-at-all');                 // Invalid
+        expect(prodUris).to.not.include('http://insecure.example.com/callback'); // Invalid HTTP
+        expect(prodUris).to.not.include('just-text-no-protocol');            // Invalid
+        expect(prodUris).to.not.include('');                                 // Invalid
+        expect(prodUris).to.have.length(4); // Only the 4 valid ones
+        
+        // Development URIs should only contain valid ones
+        const devUris = updateContent.application.dev_redirect_uris;
+        expect(devUris).to.include('http://localhost:3000/callback');         // Valid
+        expect(devUris).to.include('https://dev.example.com/callback');       // Valid
+        expect(devUris).to.include('anycustom://anything/goes');              // Valid custom scheme
+        expect(devUris).to.not.include('not-a-dev-url');                     // Invalid
+        expect(devUris).to.not.include('just plain text');                   // Invalid
+        expect(devUris).to.have.length(3); // Only the 3 valid ones
+      });
+
+      it('should include warning messages for rejected URLs', async function() {
+        // Create a test app
+        const createResponse = await callTool('hello_manage_app', {
+          action: 'create',
+          name: 'Warning Test App',
+          prod_redirect_uris: [
+            'https://valid.example.com/callback',
+            'not-a-url',                             // Invalid: will be rejected
+            'http://insecure.example.com/callback'   // Invalid: HTTP in production
+          ],
+          dev_redirect_uris: [
+            'http://localhost:3000/callback',
+            'invalid-dev-url'                        // Invalid: will be rejected
+          ]
+        }, validToken);
+        
+        expect(createResponse.status).to.equal(200);
+        const createContent = parseMCPContent(createResponse);
+        
+        // Should have warnings about rejected URIs
+        expect(createContent.action_result).to.have.property('warnings');
+        expect(createContent.action_result.warnings).to.be.an('array');
+        expect(createContent.action_result.warnings.length).to.equal(2); // One for dev, one for prod
+        
+        // Check warning messages contain rejected URIs
+        const warningText = createContent.action_result.warnings.join(' ');
+        expect(warningText).to.include('not-a-url');
+        expect(warningText).to.include('http://insecure.example.com/callback');
+        expect(warningText).to.include('invalid-dev-url');
+        expect(warningText).to.include('invalid development redirect URI(s) rejected');
+        expect(warningText).to.include('invalid production redirect URI(s) rejected');
+        
+        // Valid URIs should still be set
+        expect(createContent.application.prod_redirect_uris).to.include('https://valid.example.com/callback');
+        expect(createContent.application.dev_redirect_uris).to.include('http://localhost:3000/callback');
+        
+        console.log('📋 Create warnings:', createContent.action_result.warnings);
+        
+        // Now test update with more invalid URIs
+        const updateResponse = await callTool('hello_manage_app', {
+          action: 'update',
+          client_id: createContent.application.id,
+          prod_redirect_uris: [
+            'https://new-valid.example.com/callback',
+            'ftp://invalid.example.com/callback',    // Invalid: FTP scheme
+            'javascript:alert(1)'                    // Invalid: JavaScript scheme
+          ]
+        }, validToken);
+        
+        expect(updateResponse.status).to.equal(200);
+        const updateContent = parseMCPContent(updateResponse);
+        
+        // Should have warnings about rejected URIs in update
+        expect(updateContent.action_result).to.have.property('warnings');
+        expect(updateContent.action_result.warnings).to.be.an('array');
+        expect(updateContent.action_result.warnings.length).to.equal(1); // Only prod URIs were updated
+        
+        const updateWarningText = updateContent.action_result.warnings[0];
+        expect(updateWarningText).to.include('ftp://invalid.example.com/callback');
+        expect(updateWarningText).to.include('javascript:alert(1)');
+        expect(updateWarningText).to.include('2 invalid production redirect URI(s) rejected');
+        
+        // Should have superset of valid URIs (original + new valid)
+        const finalProdUris = updateContent.application.prod_redirect_uris;
+        expect(finalProdUris).to.include('https://valid.example.com/callback');      // Original
+        expect(finalProdUris).to.include('https://new-valid.example.com/callback');  // New valid
+        expect(finalProdUris).to.not.include('ftp://invalid.example.com/callback'); // Rejected
+        expect(finalProdUris).to.not.include('javascript:alert(1)');                // Rejected
+        
+        console.log('📋 Update warnings:', updateContent.action_result.warnings);
+      });
+
+      it('should not include warnings when all URLs are valid', async function() {
+        // Create a test app with all valid URIs
+        const createResponse = await callTool('hello_manage_app', {
+          action: 'create',
+          name: 'No Warning Test App',
+          prod_redirect_uris: [
+            'https://valid.example.com/callback',
+            'customapp://auth/callback'
+          ],
+          dev_redirect_uris: [
+            'http://localhost:3000/callback',
+            'https://dev.example.com/callback'
+          ]
+        }, validToken);
+        
+        expect(createResponse.status).to.equal(200);
+        const createContent = parseMCPContent(createResponse);
+        
+        // Should NOT have warnings when all URIs are valid
+        expect(createContent.action_result).to.not.have.property('warnings');
+        
+        // Update with more valid URIs
+        const updateResponse = await callTool('hello_manage_app', {
+          action: 'update',
+          client_id: createContent.application.id,
+          prod_redirect_uris: ['https://another-valid.example.com/callback']
+        }, validToken);
+        
+        expect(updateResponse.status).to.equal(200);
+        const updateContent = parseMCPContent(updateResponse);
+        
+        // Should NOT have warnings when all URIs are valid
+        expect(updateContent.action_result).to.not.have.property('warnings');
+      });
     });
 
     describe('create_secret action', function() {

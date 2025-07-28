@@ -202,6 +202,77 @@ async function getOrCreateDefaultTeam(apiClient, profile) {
 }
 
 /**
+ * Validate a redirect URI
+ * @param {string} uri - The URI to validate
+ * @param {boolean} isProduction - Whether this is for production environment
+ * @returns {boolean} - True if valid, false otherwise
+ */
+function validateRedirectUri(uri, isProduction = false) {
+  if (!uri || typeof uri !== 'string' || uri.trim() === '') {
+    return false;
+  }
+  
+  try {
+    const url = new URL(uri);
+    
+    // For production, only reject known insecure schemes
+    if (isProduction) {
+      // Only reject clearly problematic schemes for security
+      const rejectedSchemes = ['http:', 'ftp:', 'file:', 'data:', 'javascript:'];
+      if (rejectedSchemes.includes(url.protocol)) {
+        return false;
+      }
+      // Accept https and any other custom scheme that URL constructor can parse
+    }
+    
+    // If URL constructor can parse it, it's probably valid enough
+    return true;
+  } catch (error) {
+    // Only reject if URL constructor completely fails to parse it
+    return false;
+  }
+}
+
+/**
+ * Merge redirect URIs, creating a superset for production to prevent deletion
+ * @param {Array} existingUris - Current redirect URIs
+ * @param {Array} newUris - New redirect URIs to add
+ * @param {boolean} isProduction - Whether this is for production environment
+ * @returns {Object} - Object with merged URIs and validation info
+ */
+function mergeRedirectUris(existingUris = [], newUris = [], isProduction = false) {
+  const validNewUris = [];
+  const rejectedUris = [];
+  
+  // Validate all new URIs and separate valid from invalid
+  newUris.forEach(uri => {
+    const isValid = validateRedirectUri(uri, isProduction);
+    if (isValid) {
+      validNewUris.push(uri);
+    } else {
+      rejectedUris.push(uri);
+      console.warn(`Invalid redirect URI rejected: ${uri} (production: ${isProduction})`);
+    }
+  });
+  
+  let finalUris;
+  if (isProduction) {
+    // For production, create superset - never remove existing URIs
+    const existingSet = new Set(existingUris || []);
+    validNewUris.forEach(uri => existingSet.add(uri));
+    finalUris = Array.from(existingSet);
+  } else {
+    // For development, allow replacement
+    finalUris = validNewUris;
+  }
+  
+  return {
+    uris: finalUris,
+    rejected: rejectedUris
+  };
+}
+
+/**
  * Get user profile with team context
  * @param {Object} apiClient - Admin API client instance
  * @returns {Promise<Object>} - Profile data with team terminology
@@ -350,6 +421,10 @@ async function handleManageApp(args, apiClient) {
         appName = `${userName}'s App`;
       }
       
+      // Validate and prepare redirect URIs
+      const devUriResult = mergeRedirectUris([], dev_redirect_uris || [], false);
+      const prodUriResult = mergeRedirectUris([], prod_redirect_uris || [], true);
+
       const appData = {
         name: appName,
           tos_uri: tos_uri || null,
@@ -360,10 +435,10 @@ async function handleManageApp(args, apiClient) {
               localhost: dev_localhost !== undefined ? dev_localhost : true,
               "127.0.0.1": dev_127_0_0_1 !== undefined ? dev_127_0_0_1 : true,
               wildcard_domain: dev_wildcard !== undefined ? dev_wildcard : false,
-              redirect_uris: dev_redirect_uris || []
+              redirect_uris: devUriResult.uris
             },
             prod: {
-              redirect_uris: prod_redirect_uris || []
+              redirect_uris: prodUriResult.uris
             }
           },
           device_code: device_code || false,
@@ -372,15 +447,30 @@ async function handleManageApp(args, apiClient) {
       
       const appResult = await apiClient.callAdminAPI('POST', `/api/v1/publishers/${resolvedTeamId}/applications`, appData);
       
-              return {
-          profile,
-          application: flattenApp(appResult),
-          action_result: {
-            action: 'create',
-            success: true,
-            message: 'Application created successfully'
-          }
-        };
+      // Build warning messages for rejected URIs
+      const warnings = [];
+      if (devUriResult.rejected.length > 0) {
+        warnings.push(`${devUriResult.rejected.length} invalid development redirect URI(s) rejected: ${devUriResult.rejected.join(', ')}`);
+      }
+      if (prodUriResult.rejected.length > 0) {
+        warnings.push(`${prodUriResult.rejected.length} invalid production redirect URI(s) rejected: ${prodUriResult.rejected.join(', ')}`);
+      }
+
+      const actionResult = {
+        action: 'create',
+        success: true,
+        message: 'Application created successfully'
+      };
+      
+      if (warnings.length > 0) {
+        actionResult.warnings = warnings;
+      }
+
+      return {
+        profile,
+        application: flattenApp(appResult),
+        action_result: actionResult
+      };
     }
     
 
@@ -392,19 +482,35 @@ async function handleManageApp(args, apiClient) {
       // Get current app data first
       const currentApp = await apiClient.callAdminAPI('GET', `/api/v1/publishers/${resolvedTeamId}/applications/${client_id}`);
       
+      // Initialize URI result objects
+      let devUriResult = { uris: [], rejected: [] };
+      let prodUriResult = { uris: [], rejected: [] };
+      
               // Build web object from flattened parameters if any are provided
         let webUpdate = {};
         if (dev_localhost !== undefined || dev_127_0_0_1 !== undefined || dev_wildcard !== undefined || dev_redirect_uris !== undefined || prod_redirect_uris !== undefined) {
+          // Merge redirect URIs properly - superset for production, replacement for dev
+          const currentDevUris = currentApp.web?.dev?.redirect_uris || [];
+          const currentProdUris = currentApp.web?.prod?.redirect_uris || [];
+          
+          devUriResult = dev_redirect_uris !== undefined 
+            ? mergeRedirectUris([], dev_redirect_uris, false)  // Dev allows replacement
+            : { uris: currentDevUris, rejected: [] };
+            
+          prodUriResult = prod_redirect_uris !== undefined
+            ? mergeRedirectUris(currentProdUris, prod_redirect_uris, true)  // Prod creates superset
+            : { uris: currentProdUris, rejected: [] };
+
           webUpdate = {
             web: {
               dev: {
                 localhost: dev_localhost !== undefined ? dev_localhost : currentApp.web?.dev?.localhost || true,
                 "127.0.0.1": dev_127_0_0_1 !== undefined ? dev_127_0_0_1 : currentApp.web?.dev?.["127.0.0.1"] || true,
                 wildcard_domain: dev_wildcard !== undefined ? dev_wildcard : currentApp.web?.dev?.wildcard_domain || false,
-                redirect_uris: dev_redirect_uris !== undefined ? dev_redirect_uris : currentApp.web?.dev?.redirect_uris || []
+                redirect_uris: devUriResult.uris
               },
               prod: {
-                redirect_uris: prod_redirect_uris !== undefined ? prod_redirect_uris : currentApp.web?.prod?.redirect_uris || []
+                redirect_uris: prodUriResult.uris
               }
             }
           };
@@ -422,14 +528,29 @@ async function handleManageApp(args, apiClient) {
       
               const appResult = await apiClient.callAdminAPI('PUT', `/api/v1/publishers/${resolvedTeamId}/applications/${client_id}`, updateData);
       
-              return {
+        // Build warning messages for rejected URIs
+        const warnings = [];
+        if (devUriResult && devUriResult.rejected.length > 0) {
+          warnings.push(`${devUriResult.rejected.length} invalid development redirect URI(s) rejected: ${devUriResult.rejected.join(', ')}`);
+        }
+        if (prodUriResult && prodUriResult.rejected.length > 0) {
+          warnings.push(`${prodUriResult.rejected.length} invalid production redirect URI(s) rejected: ${prodUriResult.rejected.join(', ')}`);
+        }
+
+        const actionResult = {
+          action: 'update',
+          success: true,
+          message: 'Application updated successfully'
+        };
+        
+        if (warnings.length > 0) {
+          actionResult.warnings = warnings;
+        }
+
+        return {
           profile,
           application: flattenApp(appResult),
-          action_result: {
-            action: 'update',
-            success: true,
-            message: 'Application updated successfully'
-          }
+          action_result: actionResult
         };
     }
     
