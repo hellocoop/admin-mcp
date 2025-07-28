@@ -55,7 +55,7 @@ This MCP server provides a **single powerful tool** (`hello_manage_app`) that le
 
 **🎯 Core Tool:**
 - `hello_manage_app` - **The main tool for all application management**
-  - **Actions**: `create`, `read`, `update`, `create_secret`, `upload_logo_file`, `upload_logo_url`
+  - **Actions**: `create`, `read`, `update`, `create_secret`, `upload_logo_from_data`, `upload_logo_from_url`
   - **Always includes**: Your current profile, teams, and applications in every response
   - **Auto-context**: Automatically uses your default team if none specified
   - **Smart defaults**: Generates app names from your profile if not provided
@@ -92,12 +92,12 @@ This means you never lose context between operations - perfect for AI assistants
 - Creates secure OAuth client secrets
 - Returns: `{ profile, application, client_secret, action_result }`
 
-**🎨 `upload_logo_file`** - Upload logo from base64 data
+**🎨 `upload_logo_from_data`** - Upload logo from base64 data
 - Supports light/dark themes
 - Auto-updates application with logo URL
 - Returns: `{ profile, application, upload_result, action_result }`
 
-**🔗 `upload_logo_url`** - Upload logo from URL
+**🔗 `upload_logo_from_url`** - Upload logo from URL
 - Fetches and uploads from provided URL
 - Supports light/dark themes  
 - Returns: `{ profile, application, upload_result, action_result }`
