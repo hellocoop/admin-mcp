@@ -23,7 +23,7 @@ const mockData = {
       sub: 'user123',
       name: 'Test User',
       email: 'test@example.com',
-      publishers: ['pub123', 'pub456']
+      publishers: ['pub123', 'pub456', 'pub789']
     }
   },
   publishers: {
@@ -35,9 +35,15 @@ const mockData = {
     },
     'pub456': {
       id: 'pub456',
-      name: "Another Team",
+      name: "Hello Identity Co-op",
       owner: 'user123',
-      applications: ['app789']
+      applications: ['app789', 'app101']
+    },
+    'pub789': {
+      id: 'pub789',
+      name: "Dick Hardt's Team",
+      owner: 'user123',
+      applications: ['app202', 'app303']
     }
   },
   applications: {
@@ -85,10 +91,10 @@ const mockData = {
     },
     'app789': {
       id: 'app789',
-      name: 'Cross-Team App',
+      name: 'Identity Co-op Portal',
       publisher_id: 'pub456',
-      tos_uri: null,
-      pp_uri: null,
+      tos_uri: 'https://hello.coop/tos',
+      pp_uri: 'https://hello.coop/privacy',
       image_uri: null,
       dark_image_uri: null,
       device_code: false,
@@ -100,7 +106,73 @@ const mockData = {
           redirect_uris: ['http://localhost:4000/callback']
         },
         prod: {
-          redirect_uris: []
+          redirect_uris: ['https://portal.hello.coop/auth']
+        }
+      },
+      createdBy: 'admin'
+    },
+    'app101': {
+      id: 'app101',
+      name: 'Hello SDK Demo',
+      publisher_id: 'pub456',
+      tos_uri: null,
+      pp_uri: null,
+      image_uri: 'https://logos.hello.coop/hello-logo.png',
+      dark_image_uri: 'https://logos.hello.coop/hello-logo-dark.png',
+      device_code: true,
+      web: {
+        dev: {
+          localhost: true,
+          "127.0.0.1": true,
+          wildcard_domain: true,
+          redirect_uris: ['http://localhost:5000/callback']
+        },
+        prod: {
+          redirect_uris: ['https://demo.hello.coop/callback']
+        }
+      },
+      createdBy: 'quickstart'
+    },
+    'app202': {
+      id: 'app202',
+      name: 'Personal Project Alpha',
+      publisher_id: 'pub789',
+      tos_uri: null,
+      pp_uri: null,
+      image_uri: null,
+      dark_image_uri: null,
+      device_code: false,
+      web: {
+        dev: {
+          localhost: true,
+          "127.0.0.1": false,
+          wildcard_domain: false,
+          redirect_uris: ['http://localhost:3001/auth']
+        },
+        prod: {
+          redirect_uris: ['https://alpha.dickhardt.org/callback']
+        }
+      },
+      createdBy: 'mcp'
+    },
+    'app303': {
+      id: 'app303',
+      name: 'Experimental OAuth Client',
+      publisher_id: 'pub789',
+      tos_uri: 'https://dickhardt.org/tos',
+      pp_uri: 'https://dickhardt.org/privacy',
+      image_uri: null,
+      dark_image_uri: null,
+      device_code: true,
+      web: {
+        dev: {
+          localhost: false,
+          "127.0.0.1": false,
+          wildcard_domain: false,
+          redirect_uris: ['http://localhost:8000/oauth/callback']
+        },
+        prod: {
+          redirect_uris: ['https://experiment.dickhardt.org/oauth/callback']
         }
       },
       createdBy: 'mcp'
@@ -377,6 +449,8 @@ app.get('/api/v1/profile', async (request, reply) => {
   };
 });
 
+
+
 app.get('/api/v1/profile/:publisherId', async (request, reply) => {
   const { publisherId } = request.params;
   const publisher = mockData.publishers[publisherId];
@@ -451,11 +525,39 @@ app.get('/api/v1/publishers/:publisherId', async (request, reply) => {
     return reply.code(404).send({ error: 'Publisher not found' });
   }
   
-  const applications = publisher.applications.map(appId => mockData.applications[appId]).filter(Boolean);
+  const applications = publisher.applications.map(appId => {
+    const app = mockData.applications[appId];
+    if (!app) return null;
+    
+    return {
+      ...app,
+      type: "application",
+      publisher: publisher.id,
+      publisherName: publisher.name,
+      createdAt: "2024-07-03T16:51:35.286Z",
+      teamId: publisher.id,
+      teamName: publisher.name
+    };
+  }).filter(Boolean);
   
+  // Match the real Admin server's response structure
   return {
-    ...publisher,
-    applications
+    profile: {
+      type: "publisher",
+      id: publisher.id,
+      name: publisher.name,
+      createdAt: "2024-07-03T16:51:35.286Z"
+    },
+    applications,
+    members: {
+      admins: [{
+        id: request.userId,
+        name: mockData.users[request.userId]?.name || "Test User",
+        email: mockData.users[request.userId]?.email || "test@example.com"
+      }],
+      testers: []
+    },
+    role: "admin"
   };
 });
 

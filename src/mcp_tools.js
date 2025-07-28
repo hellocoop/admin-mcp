@@ -206,31 +206,50 @@ async function getOrCreateDefaultTeam(apiClient, profile) {
  * @param {Object} apiClient - Admin API client instance
  * @returns {Promise<Object>} - Profile data with team terminology
  */
-async function getProfileWithTeamContext(apiClient) {
+async function getProfileWithTeamContext(apiClient, teamId = null) {
   try {
-    const response = await apiClient.callAdminAPI('GET', '/api/v1/profile');
-    
-    // Transform to MCP structure using real API response format
-    return {
-      user: response.profile, // Real API has profile at top level
-      defaultTeam: response.currentPublisher?.profile ? {
-        id: response.currentPublisher.profile.id,
-        name: response.currentPublisher.profile.name,
-        role: 'admin' // Assume admin role for current publisher
-      } : null,
-      teams: response.publishers?.map(pub => ({
-        id: pub.id,
-        name: pub.name,
-        role: pub.role,
-        applications: [] // Publishers don't include applications in list
-      })) || [],
-      // Applications are only available from currentPublisher
-      applications: response.currentPublisher?.applications?.map(app => ({
-        ...app,
-        teamId: response.currentPublisher.profile.id,
-        teamName: response.currentPublisher.profile.name
-      })) || []
-    };
+    if (teamId) {
+      // When team_id is provided, get specific publisher data
+      const publisherResponse = await apiClient.callAdminAPI('GET', `/api/v1/publishers/${teamId}`);
+      
+      return {
+        user: { 
+          id: publisherResponse.profile.id, 
+          name: publisherResponse.profile.name 
+        },
+        defaultTeam: {
+          id: publisherResponse.profile.id,
+          name: publisherResponse.profile.name,
+          role: publisherResponse.role || 'admin'
+        },
+        teams: [{
+          id: publisherResponse.profile.id,
+          name: publisherResponse.profile.name,
+          role: publisherResponse.role || 'admin',
+          applications: publisherResponse.applications || []
+        }],
+        applications: publisherResponse.applications || []
+      };
+    } else {
+      // Default behavior - get profile with default team
+      const profileResponse = await apiClient.callAdminAPI('GET', '/api/v1/profile');
+      
+      return {
+        user: profileResponse.profile,
+        defaultTeam: profileResponse.currentPublisher?.profile ? {
+          id: profileResponse.currentPublisher.profile.id,
+          name: profileResponse.currentPublisher.profile.name,
+          role: 'admin'
+        } : null,
+        teams: profileResponse.publishers?.map(pub => ({
+          id: pub.id,
+          name: pub.name,
+          role: pub.role,
+          applications: [] // Publishers don't include applications in list
+        })) || [],
+        applications: profileResponse.currentPublisher?.applications || []
+      };
+    }
   } catch (error) {
     // Return minimal profile on error
     return {
@@ -272,7 +291,7 @@ async function handleManageApp(args, apiClient) {
   }
   
   // Get current profile, team, and application data 
-  const profile = await getProfileWithTeamContext(apiClient);
+  const profile = await getProfileWithTeamContext(apiClient, team_id);
 
   // Handle read action separately - no need to create teams
   if (action === 'read') {

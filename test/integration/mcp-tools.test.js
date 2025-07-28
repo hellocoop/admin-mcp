@@ -230,6 +230,42 @@ describe('MCP Integration Tests', function() {
         expect(content.profile.applications).to.be.an('array');
       });
 
+      it('should return applications for specific team when team_id provided', async function() {
+        // First get the profile to see available teams
+        const profileResponse = await callTool('hello_manage_app', {
+          action: 'read'
+        }, validToken);
+        
+        expect(profileResponse.status).to.equal(200);
+        const profileContent = parseMCPContent(profileResponse);
+        
+        // Should have default team applications
+        expect(profileContent.profile.applications).to.be.an('array');
+        expect(profileContent.profile.teams).to.be.an('array');
+        expect(profileContent.profile.teams.length).to.be.at.least(1);
+        
+        // Now test reading a specific team's applications
+        const teamId = profileContent.profile.teams[0].id;
+        const teamResponse = await callTool('hello_manage_app', {
+          action: 'read',
+          team_id: teamId
+        }, validToken);
+        
+        expect(teamResponse.status).to.equal(200);
+        const teamContent = parseMCPContent(teamResponse);
+        
+        // Should return applications for the specific team
+        expect(teamContent.profile.applications).to.be.an('array');
+        expect(teamContent.profile.teams).to.be.an('array');
+        expect(teamContent.profile.teams.length).to.equal(1); // Only the requested team
+        expect(teamContent.profile.teams[0].id).to.equal(teamId);
+        
+        console.log(`📋 Applications found for team ${teamId}:`);
+        teamContent.profile.applications.forEach(app => {
+          console.log(`   - ${app.name} (ID: ${app.id})`);
+        });
+      });
+
       it('should return profile and app when client_id provided', async function() {
         // First create a test app if we don't have one
         if (!testClientId) {
