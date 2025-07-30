@@ -348,7 +348,12 @@ class MCPHttpServer {
     };
 
     const mcpGetHandler = async (request, reply) => {
-      return reply.redirect('https://www.hello.dev/docs/mcp/');
+      return reply.code(405)
+        .header('Allow', 'POST')
+        .send({
+          error: 'Method Not Allowed',
+          message: 'This MCP server does not support SSE streaming on GET requests'
+        });
     };
 
     // Register both GET and POST handlers
