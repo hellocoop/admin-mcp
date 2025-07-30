@@ -11,6 +11,7 @@
   "scripts": {
     "start": "node src/stdio.js",
     "start:http": "node src/http.js",
+    "start:http:debug": "nodemon --inspect=0.0.0.0 src/http.js",
     "test": "npm run test:tools && npm run test:integration:mocha:shell",
     "test:legacy": "npm run test:tools && npm run test:integration:docker",
     "test:tools": "node test/tools.test.js",
@@ -64,6 +65,7 @@
     "chai": "^5.2.1",
     "chai-http": "^5.1.2",
     "mocha": "^11.7.1",
+    "nodemon": "^3.1.10",
     "semver": "^7.7.2"
   }
 }

@@ -1,0 +1,12 @@
+{
+  "watch": ["src"],
+  "ext": "js,json",
+  "ignore": [
+    "node_modules",
+    "test",
+    "scripts",
+    "*.test.js",
+    "*.spec.js"
+  ],
+  "verbose": true
+} 
