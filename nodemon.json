@@ -1,6 +1,7 @@
 {
   "watch": [
-    "./src"
+    "./src",
+    "./package.json"
   ],
   "ext": "js,json",
   "verbose": true
