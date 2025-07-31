@@ -1,12 +1,7 @@
 {
-  "watch": ["src"],
-  "ext": "js,json",
-  "ignore": [
-    "node_modules",
-    "test",
-    "scripts",
-    "*.test.js",
-    "*.spec.js"
+  "watch": [
+    "./src"
   ],
+  "ext": "js,json",
   "verbose": true
 } 
