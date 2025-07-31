@@ -1,6 +1,6 @@
 {
   "name": "@hellocoop/admin-mcp",
-  "version": "1.5.4",
+  "version": "1.5.5",
   "description": "Model Context Protocol (MCP) for Hellō Admin API.",
   "type": "module",
   "main": "src/index.js",
