@@ -5,7 +5,28 @@ import crypto from 'crypto';
 import FormData from 'form-data';
 import { validateMimeType, detectMimeType, extractBase64FromDataUrl, createMCPContent } from './utils.js';
 import { sendPlausibleEvent } from './analytics.js';
-import { HELLO_ADMIN } from './config.js';
+import { HELLO_ADMIN, HELLO_DOMAIN } from './config.js';
+
+/**
+ * Generate console URL with proper query parameters
+ * @param {string} clientId - The application client ID
+ * @param {Object} profile - User profile containing user info
+ * @returns {string} - Console URL with query parameters
+ */
+function generateConsoleUrl(clientId, profile) {
+  const params = {
+    iss: `https://issuer.${HELLO_DOMAIN}`,
+    client_id: clientId,
+  }
+  const loginHint = profile.user?.id || profile.user?.email;
+  if (loginHint) {
+    params.login_hint = loginHint;
+  }
+
+  const url = new URL(`https://console.${HELLO_DOMAIN}`);
+  url.search = new URLSearchParams(params).toString();
+  return url.toString();
+}
 
 /**
  * Flatten application object for response
@@ -399,6 +420,7 @@ async function handleManageApp(args, apiClient) {
     return {
       profile,
       application: flattenApp(app),
+      console_url: generateConsoleUrl(client_id, profile),
       action_result: {
         action: 'read',
         success: true,
@@ -469,6 +491,7 @@ async function handleManageApp(args, apiClient) {
       return {
         profile,
         application: flattenApp(appResult),
+        console_url: generateConsoleUrl(appResult.id, profile),
         action_result: actionResult
       };
     }
@@ -550,6 +573,7 @@ async function handleManageApp(args, apiClient) {
         return {
           profile,
           application: flattenApp(appResult),
+          console_url: generateConsoleUrl(client_id, profile),
           action_result: actionResult
         };
     }
@@ -569,6 +593,7 @@ async function handleManageApp(args, apiClient) {
               return {
           profile,
           client_secret: secret, // Return the raw secret to the user
+          console_url: generateConsoleUrl(client_id, profile),
           action_result: {
             action: 'create_secret',
             success: true,
@@ -651,6 +676,7 @@ async function handleManageApp(args, apiClient) {
       const response = {
         profile,
         application: flattenApp(updatedApp),
+        console_url: generateConsoleUrl(client_id, profile),
         upload_result: {
           ...uploadResult,
           // Include generated filename in flattened response
@@ -724,6 +750,7 @@ async function handleManageApp(args, apiClient) {
       return {
         profile,
         application: flattenApp(updatedApp),
+        console_url: generateConsoleUrl(client_id, profile),
         upload_result: {
           ...uploadResult,
           logo_filename: generatedFilename
