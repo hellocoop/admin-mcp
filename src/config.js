@@ -23,9 +23,9 @@ export const ISSUER_BASE_URL = `https://issuer.${HELLO_DOMAIN}`;
 
 // OAuth client configuration
 // MCP_STDIO_CLIENT_ID: Used by stdio transport for local OAuth flows
-export const MCP_STDIO_CLIENT_ID = process.env.MCP_STDIO_CLIENT_ID || 'hello_mcp_stdio_client';
+export const MCP_STDIO_CLIENT_ID = process.env.MCP_STDIO_CLIENT_ID || 'hello_mcp_stdio_app';
 // MCP_HTTP_CLIENT_ID: Used by HTTP transport (obtained via DCR in Admin server)
-export const MCP_HTTP_CLIENT_ID = process.env.MCP_HTTP_CLIENT_ID || 'hello_mcp_http_client';
+export const MCP_HTTP_CLIENT_ID = process.env.MCP_HTTP_CLIENT_ID || 'hello_mcp_http_app';
 export const HELLO_ACCESS_TOKEN = process.env.HELLO_ACCESS_TOKEN || null;
 
 // Development flags
