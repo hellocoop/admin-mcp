@@ -1,5 +1,6 @@
 {
   "name": "@hellocoop/admin-mcp",
+  "mcpName": "io.github.hellocoop/admin-mcp",
   "version": "1.5.6",
   "description": "Model Context Protocol (MCP) for Hellō Admin API.",
   "type": "module",
