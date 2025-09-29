@@ -76,7 +76,7 @@ export function getResourceDefinitions() {
       mimeType: 'text/markdown'
     },
     {
-      uri: 'https://www.hello.dev/markdown/docs/docs/mcp.md',
+      uri: 'https://www.hello.dev/markdown/docs/docs/admin-mcp.md',
       name: 'Hellō MCP Server',
       description: 'Model Context Protocol server documentation for Hellō integration',
       mimeType: 'text/markdown'

@@ -6,7 +6,7 @@ Model Context Protocol (MCP) server for creating and managing [Hellō](https://h
 
 ## Quick Install
 
-📖 **[Full Documentation & Installation Guide](https://hello.dev/docs/mcp)**
+📖 **[Full Documentation & Installation Guide](https://hello.dev/docs/admin-mcp)**
 
 ### Quick Configuration
 
@@ -39,7 +39,7 @@ Copy one of these configurations into your MCP client settings:
 
 This MCP server provides a **single powerful tool** (`hello_manage_app`) that lets you create and manage your Hellō applications directly from your AI assistant. Unlike traditional APIs, **every operation automatically includes your complete developer context** - profile, teams, and applications - making it perfect for AI assistants.
 
-**📖 For detailed usage instructions, examples, and troubleshooting, visit: [hello.dev/docs/mcp](https://hello.dev/docs/mcp)**
+**📖 For detailed usage instructions, examples, and troubleshooting, visit: [hello.dev/docs/admin-mcp](https://hello.dev/docs/admin-mcp)**
 
 ## Features
 
