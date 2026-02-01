@@ -175,10 +175,24 @@ class MCPHttpServer {
 
     // Version endpoint
     this.fastify.get('/version', async (request, reply) => {
-      return { 
+      return {
         name: packageJson.name,
         version: packageJson.version,
         description: packageJson.description
+      };
+    });
+
+    // Standardized health endpoint
+    this.fastify.get('/api/health/:caller', async (request, reply) => {
+      return {
+        status: 'healthy',
+        service: 'admin-mcp',
+        version: packageJson.version,
+        commit: process.env.GIT_COMMIT ?? 'unknown',
+        node: process.versions.node,
+        arch: process.arch,
+        uptime: process.uptime(),
+        caller: request.params.caller,
       };
     });
 
