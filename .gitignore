@@ -75,3 +75,6 @@ temp/
 # MCP registry file
 .mcpregistry_github_token
 .mcpregistry_registry_token
+
+# Registry research data
+registry/
