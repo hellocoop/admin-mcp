@@ -136,12 +136,6 @@ export const loggingPreHandler = (request, reply, done) => {
 export const logRequest = (request, reply, done) => {
   const path = request.routerPath || request.url?.split('?')[0] || 'unknown'
 
-    // Skip health check logging unless in debug mode
-  if (path === '/health' && LOG_LEVEL !== 'debug') {
-    done()
-    return
-  }
-
   request.log.info({
     event: 'http_request',
     method: request.method,
@@ -157,25 +151,18 @@ export const logRequest = (request, reply, done) => {
       authorization: request.headers.authorization ? '[REDACTED]' : undefined
     }
   }, `HTTP ${request.method} ${path}`)
-  
+
   done()
 }
 
 // Separate function for logging responses (similar to Wallet's logResponse)
 export const logResponse = (request, reply, payload, done) => {
-  const path = request.routerPath || request.url?.split('?')[0] || 'unknown'
-      // Skip health check logging unless in debug mode
-  if (path === '/health' && LOG_LEVEL !== 'debug') {
-    done()
-    return
-  }
-
   let duration_ms = 'unknown'
   if (request.hrStartTime) {
     const diff = process.hrtime(request.hrStartTime)
     duration_ms = Math.round(diff[0] * 1000 + diff[1] / 1e6)
   }
-  
+
   const data = {
     event: 'http_response',
     statusCode: reply.statusCode,
@@ -183,9 +170,9 @@ export const logResponse = (request, reply, payload, done) => {
     contentLength: reply.getHeader('content-length') || 0,
     allResponseHeaders: reply.getHeaders()
   }
-  
+
   const message = `HTTP response ${reply.statusCode} (${duration_ms}ms)`
-  
+
   if (reply.statusCode < 400) {
     request.log.info(data, message)
   } else if (reply.statusCode < 500) {
@@ -193,16 +180,19 @@ export const logResponse = (request, reply, payload, done) => {
   } else {
     request.log.error(data, message)
   }
-  
+
   done(null, payload)
 }
 
-// Fastify plugin for structured logging
+// Setup logging (global initialization only — no hooks)
 export const setupLogging = (fastify) => {
   // Set global app reference like Wallet
   app = fastify
-  
-  // Add hooks in the same order as Wallet
+}
+
+// Add logging hooks to a Fastify instance (use inside encapsulated plugin)
+// Health check routes registered outside this plugin will bypass these hooks
+export const addLoggingHooks = (fastify) => {
   fastify.addHook('preHandler', loggingPreHandler)  // Set up context first
   fastify.addHook('preHandler', logRequest)         // Then log the request
   fastify.addHook('preSerialization', logResponse)  // Log response before serialization

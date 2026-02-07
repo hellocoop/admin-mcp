@@ -5,7 +5,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { HelloMCPServer } from './mcp-server.js';
 import { createWellKnownHandlers } from './oauth-endpoints.js';
-import { setupLogging, logOptions } from './log.js';
+import { setupLogging, addLoggingHooks, logOptions } from './log.js';
 import { jwtValidationPlugin } from './jwt-validation.js';
 import packageJson from './package.js';
 import { PORT, HOST, CONFIG } from './config.js';
@@ -103,17 +103,14 @@ class MCPHttpServer {
   }
 
   async setupPlugins() {
-    // Setup structured logging
+    // Setup structured logging (global init only — no hooks on root)
     setupLogging(this.fastify);
-    
-    // Setup JWT validation
-    await this.fastify.register(jwtValidationPlugin);
-    
-    // CORS
+
+    // CORS (global — applies to all routes including health checks)
     this.fastify.addHook('preHandler', async (request, reply) => {
       const origin = request.headers.origin || '*';
       const requestedHeaders = request.headers['access-control-request-headers'];
-      
+
       // Always set CORS headers
       reply.header('Access-Control-Allow-Origin', origin);
       reply.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -121,68 +118,18 @@ class MCPHttpServer {
       reply.header('Access-Control-Max-Age', '86400');
       reply.header('Access-Control-Allow-Credentials', 'false');
     });
-      
+
     // Handle OPTIONS requests
     this.fastify.options('*', async (request, reply) => {
       reply.code(204);
       return '';
     });
-    
-    // JSON parsing error handler
-    this.fastify.setErrorHandler(async (error, request, reply) => {
-      if (error.statusCode === 400 && error.message.includes('JSON')) {
-        return reply.code(400).send({
-          jsonrpc: '2.0',
-          error: {
-            code: -32700,
-            message: 'Parse error - Invalid JSON'
-          },
-          id: null
-        });
-      }
-      
-      request.log.error({
-        event: 'fastify_error',
-        error: {
-          message: error.message,
-          stack: error.stack,
-          statusCode: error.statusCode
-        }
-      }, 'Fastify error');
-      
-      reply.code(error.statusCode || 500).send({
-        jsonrpc: '2.0',
-        error: {
-          code: -32603,
-          message: 'Internal error',
-          data: error.message
-        },
-        id: null
-      });
-    });
-  }
 
-  setupRoutes() {
-    // OAuth well-known endpoints
-    const endpoints = createWellKnownHandlers();
-    this.fastify.get('/.well-known/oauth-authorization-server', endpoints.authServer);
-    this.fastify.get('/.well-known/oauth-protected-resource', endpoints.protectedResource);
-
-    // Health check
+    // Health checks on root — bypass logging hooks, only go to stdout/CloudWatch
     this.fastify.get('/health', async (request, reply) => {
       return { status: 'ok', timestamp: new Date().toISOString() };
     });
 
-    // Version endpoint
-    this.fastify.get('/version', async (request, reply) => {
-      return {
-        name: packageJson.name,
-        version: packageJson.version,
-        description: packageJson.description
-      };
-    });
-
-    // Standardized health endpoint
     this.fastify.get('/api/health/:caller', async (request, reply) => {
       return {
         status: 'healthy',
@@ -196,6 +143,68 @@ class MCPHttpServer {
       };
     });
 
+    // JSON parsing error handler
+    this.fastify.setErrorHandler(async (error, request, reply) => {
+      if (error.statusCode === 400 && error.message.includes('JSON')) {
+        return reply.code(400).send({
+          jsonrpc: '2.0',
+          error: {
+            code: -32700,
+            message: 'Parse error - Invalid JSON'
+          },
+          id: null
+        });
+      }
+
+      request.log.error({
+        event: 'fastify_error',
+        error: {
+          message: error.message,
+          stack: error.stack,
+          statusCode: error.statusCode
+        }
+      }, 'Fastify error');
+
+      reply.code(error.statusCode || 500).send({
+        jsonrpc: '2.0',
+        error: {
+          code: -32603,
+          message: 'Internal error',
+          data: error.message
+        },
+        id: null
+      });
+    });
+  }
+
+  setupRoutes() {
+    // Encapsulated plugin for all application routes — logging hooks only apply here
+    this.fastify.register(async (fastify) => {
+      addLoggingHooks(fastify);
+
+      // Setup JWT validation inside the logged plugin
+      await fastify.register(jwtValidationPlugin);
+
+      // OAuth well-known endpoints
+      const endpoints = createWellKnownHandlers();
+      fastify.get('/.well-known/oauth-authorization-server', endpoints.authServer);
+      fastify.get('/.well-known/oauth-protected-resource', endpoints.protectedResource);
+
+      // Version endpoint
+      fastify.get('/version', async (request, reply) => {
+        return {
+          name: packageJson.name,
+          version: packageJson.version,
+          description: packageJson.description
+        };
+      });
+
+      // Register MCP handlers inside this plugin
+      this._registerMCPRoutes(fastify);
+    });
+  }
+
+  _registerMCPRoutes(fastify) {
     // MCP POST handler
     const mcpPostHandler = async (request, reply) => {
       try {
@@ -371,8 +380,8 @@ class MCPHttpServer {
     };
 
     // Register both GET and POST handlers
-    this.fastify.get('/', mcpGetHandler);
-    this.fastify.post('/', mcpPostHandler);
+    fastify.get('/', mcpGetHandler);
+    fastify.post('/', mcpPostHandler);
   }
 
   async start() {
