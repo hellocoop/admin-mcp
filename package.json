@@ -48,7 +48,7 @@
   "author": "Hello Identity Co-op",
   "license": "ISC",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=24.0.0"
   },
   "dependencies": {
     "@fastify/multipart": "^9.0.1",

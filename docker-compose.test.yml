@@ -1,7 +1,7 @@
 services:
   # Mock Admin Server
   mock-admin:
-    image: node:22-alpine
+    image: node:24-alpine
     working_dir: /usr/src/mcp
     volumes:
       - type: bind
@@ -16,7 +16,7 @@ services:
 
   # MCP HTTP Server  
   mcp-server:
-    image: node:22-alpine
+    image: node:24-alpine
     working_dir: /usr/src/mcp
     volumes:
       - type: bind
