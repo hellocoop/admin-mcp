@@ -1,6 +1,6 @@
 // MCP server structured logging module
 import { AsyncLocalStorage } from 'async_hooks'
-import jwt from 'jsonwebtoken'
+import { decodeJwt } from './utils.js'
 import identifier from '@hellocoop/identifier'
 import { LogController } from 'fastify'
 import { LOG_LEVEL, IS_DEVELOPMENT } from './config.js'
@@ -10,7 +10,7 @@ const asyncLocalStorage = new AsyncLocalStorage()
 // Extract token identifier from JWT (fallback for when payload not available)
 export const extractTokenIdentifier = (token) => {
   try {
-    const decoded = jwt.decode(token, { complete: true })
+    const decoded = decodeJwt(token)
     return {
       jti: decoded.payload.jti || 'unknown',
       sub: decoded.payload.sub || 'unknown',

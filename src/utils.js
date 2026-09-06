@@ -12,6 +12,24 @@ export const SUPPORTED_MIMETYPES = [
 ];
 
 /**
+ * Decode a JWT without verifying its signature
+ * @param {string} token - Compact JWS
+ * @returns {{header: Object, payload: Object, signature: string}|null} - Decoded parts, or null if malformed
+ */
+export function decodeJwt(token) {
+  try {
+    const parts = String(token).split('.');
+    if (parts.length !== 3) return null;
+    const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'));
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+    if (!header || typeof header !== 'object' || !payload || typeof payload !== 'object') return null;
+    return { header, payload, signature: parts[2] };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Validate mimetype for logo uploads
  * @param {string} mimeType - The MIME type to validate
  * @returns {Object} - Validation result with valid boolean and error message

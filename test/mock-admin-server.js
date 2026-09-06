@@ -5,7 +5,7 @@
 
 import fastify from 'fastify';
 import multipart from '@fastify/multipart';
-import jwt from 'jsonwebtoken';
+import { decodeJwt } from '../src/utils.js';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -213,7 +213,10 @@ function generateMockToken(payload, options = {}) {
     ...payload
   };
   
-  return jwt.sign(defaultPayload, MOCK_JWT_SECRET, { algorithm: 'HS256' });
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+  const body = Buffer.from(JSON.stringify(defaultPayload)).toString('base64url');
+  const signature = crypto.createHmac('sha256', MOCK_JWT_SECRET).update(`${header}.${body}`).digest('base64url');
+  return `${header}.${body}.${signature}`;
 }
 
 /**
@@ -224,7 +227,7 @@ function generateMockToken(payload, options = {}) {
 function validateMockToken(token) {
   try {
     // Decode without verification for mock purposes
-    const decoded = jwt.decode(token);
+    const decoded = decodeJwt(token)?.payload;
     
     if (!decoded) {
       return null;

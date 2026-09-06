@@ -2,7 +2,6 @@
 // Focused on new Hellō developers who want to easily create first app
 
 import crypto from 'crypto';
-import FormData from 'form-data';
 import { validateMimeType, detectMimeType, extractBase64FromDataUrl, createMCPContent } from './utils.js';
 import { sendPlausibleEvent } from './analytics.js';
 import { HELLO_ADMIN, HELLO_DOMAIN } from './config.js';
@@ -814,68 +813,30 @@ async function uploadLogoBinary(publisherId, applicationId, logoFile, logoConten
   // Convert base64 to buffer
   const buffer = Buffer.from(logoFile, 'base64');
   
-  // Create FormData - use the imported module
+  // Create multipart body with the global FormData (fetch sets the boundary Content-Type)
   const formData = new FormData();
-  
+
   // Add the file with placeholder filename and content type
-  formData.append('file', buffer, {
-    filename: 'placeholder',
-    contentType: logoContentType
-  });
-  
-  // Make the API call with form data using a custom approach
+  formData.append('file', new Blob([buffer], { type: logoContentType }), 'placeholder');
+
   const path = `/api/v1/publishers/${publisherId}/applications/${applicationId}/logo`;
-  
+
   try {
-    // Import HELLO_ADMIN config and get access token properly
     const accessToken = apiClient.authManager.getAccessToken();
-    
-    // Convert form-data to a format that works better with fetch
-    return new Promise((resolve, reject) => {
-      // Get the form data as buffer
-      formData.getLength((err, length) => {
-        if (err) {
-          reject(new Error(`Failed to get form data length: ${err.message}`));
-          return;
-        }
-        
-        const chunks = [];
-        formData.on('data', chunk => {
-          // Ensure chunk is a Buffer
-          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-        });
-        formData.on('end', async () => {
-          try {
-            const buffer = Buffer.concat(chunks);
-            
-            const response = await fetch(`${HELLO_ADMIN}${path}`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': formData.getHeaders()['content-type'],
-                'Content-Length': length.toString()
-              },
-              body: buffer
-            });
-            
-            if (!response.ok) {
-              throw new Error(`HTTP ${response.status}: ${await response.text()}`);
-            }
-            
-            resolve(await response.json());
-          } catch (error) {
-            reject(new Error(`Logo upload failed: ${error.message}`));
-          }
-        });
-        
-        formData.on('error', (error) => {
-          reject(new Error(`Form data error: ${error.message}`));
-        });
-        
-        // Actually start reading the form data to trigger the events
-        formData.resume();
-      });
+
+    const response = await fetch(`${HELLO_ADMIN}${path}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: formData
     });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+    }
+
+    return await response.json();
   } catch (error) {
     throw new Error(`Logo upload failed: ${error.message}`);
   }

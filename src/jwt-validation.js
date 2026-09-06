@@ -2,7 +2,7 @@
 // Validates JWT tokens without signature verification
 // Checks scope, issuer, audience, and expiration
 
-import jwt from 'jsonwebtoken'
+import { decodeJwt } from './utils.js'
 import { HELLO_DOMAIN, HELLO_ISSUER, HELLO_AUDIENCE } from './config.js';
 
 const DOMAIN = HELLO_DOMAIN;
@@ -20,7 +20,7 @@ const REQUIRED_SCOPE = 'mcp'
 export const validateJWT = (token) => {
   try {
     // Decode token without verification
-    const decoded = jwt.decode(token, { complete: true })
+    const decoded = decodeJwt(token)
     
     if (!decoded || !decoded.payload) {
       return {

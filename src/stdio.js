@@ -7,9 +7,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { HelloMCPServer } from './mcp-server.js';
 import { WALLET_BASE_URL, MCP_STDIO_CLIENT_ID } from './oauth-endpoints.js';
 import { pkce } from '@hellocoop/helper-server';
-import getPort from 'get-port';
 import http from 'http';
-import url from 'url';
 import open from 'open';
 import crypto from 'crypto';
 import fs from 'fs';
@@ -109,15 +107,14 @@ class MCPCLIServer {
   }
 
   async startCallbackServer(expectedState) {
-    return new Promise(async (resolve, reject) => {
-      // Get any available port
-      this.localPort = await getPort();
-      
+    return new Promise((resolve, reject) => {
       const server = http.createServer((req, res) => {
-        const parsedUrl = url.parse(req.url, true);
-        
+        const parsedUrl = new URL(req.url, `http://localhost:${this.localPort}`);
+
         if (parsedUrl.pathname === '/callback') {
-          const { code, state, error } = parsedUrl.query;
+          const code = parsedUrl.searchParams.get('code');
+          const state = parsedUrl.searchParams.get('state');
+          const error = parsedUrl.searchParams.get('error');
           
           if (error) {
             res.writeHead(400, { 'Content-Type': 'text/html' });
@@ -168,7 +165,9 @@ class MCPCLIServer {
         }
       });
 
-      server.listen(this.localPort, () => {
+      // Listen on any available port
+      server.listen(0, () => {
+        this.localPort = server.address().port;
         const serverUrl = `http://localhost:${this.localPort}`;
         console.error(`🌐 MCP Authentication server started: ${serverUrl}`);
         console.error(`📱 Opening browser automatically...`);
