@@ -2,6 +2,7 @@
 import { AsyncLocalStorage } from 'async_hooks'
 import jwt from 'jsonwebtoken'
 import identifier from '@hellocoop/identifier'
+import { LogController } from 'fastify'
 import { LOG_LEVEL, IS_DEVELOPMENT } from './config.js'
 
 const asyncLocalStorage = new AsyncLocalStorage()
@@ -263,7 +264,7 @@ export const apiLogError = ({ event, startTime, message, extra = {} }) => {
 
 // Fastify logging configuration (similar to Wallet server)
 export const logOptions = {
-  disableRequestLogging: true, // Disable automatic request logging
+  logController: new LogController({ disableRequestLogging: true }), // Disable automatic request logging
   logger: {
     level: LOG_LEVEL,
     base: null, // Removes `pid` and `hostname`
